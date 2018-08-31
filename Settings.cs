@@ -3,6 +3,7 @@ using Sandbox.Definitions;
 using Sandbox.ModAPI;
 using System;
 using System.IO;
+using System.Xml.Serialization;
 using VRage.Utils;
 
 namespace RelativeTopSpeed
@@ -14,6 +15,7 @@ namespace RelativeTopSpeed
 
         public static readonly Settings Default = new Settings()
         {
+            UseLogarithmic = false,
             SpeedLimit = 140,
             LargeGrid_MinCruise = 60,
             LargeGrid_MaxCruise = 110,
@@ -30,6 +32,9 @@ namespace RelativeTopSpeed
         };
 
         [ProtoMember]
+        public bool UseLogarithmic { get; set; }
+
+        [ProtoMember]
         public float SpeedLimit { get; set; }
 
         [ProtoMember]
@@ -39,17 +44,16 @@ namespace RelativeTopSpeed
         public float LargeGrid_MaxCruise { get; set; }
 
         [ProtoMember]
-        public float LargeGrid_MaxBoostSpeed { get; set; }
-
-        [ProtoMember]
-        public float LargeGrid_ResistanceMultiplier { get; set; }
-
-        [ProtoMember]
         public float LargeGrid_MaxMass { get; set; }
 
         [ProtoMember]
         public float LargeGrid_MinMass { get; set; }
 
+        [ProtoMember]
+        public float LargeGrid_MaxBoostSpeed { get; set; }
+
+        [ProtoMember]
+        public float LargeGrid_ResistanceMultiplier { get; set; }
 
         [ProtoMember]
         public float SmallGrid_MinCruise { get; set; }
@@ -58,24 +62,61 @@ namespace RelativeTopSpeed
         public float SmallGrid_MaxCruise { get; set; }
 
         [ProtoMember]
-        public float SmallGrid_MaxBoostSpeed { get; set; }
-
-        [ProtoMember]
-        public float SmallGrid_ResistanceMultiplyer { get; set; }
-
-        [ProtoMember]
         public float SmallGrid_MaxMass { get; set; }
 
         [ProtoMember]
         public float SmallGrid_MinMass { get; set; }
 
-        public float l_a;
-        public float s_a;
+        [ProtoMember]
+        public float SmallGrid_MaxBoostSpeed { get; set; }
+
+        [ProtoMember]
+        public float SmallGrid_ResistanceMultiplyer { get; set; }
+
+        [XmlIgnore]
+        public double l_a;
+        [XmlIgnore]
+        public double s_a;
 
         public void CalculateCurve()
         {
-            l_a = (float)((LargeGrid_MaxCruise - LargeGrid_MinCruise) / Math.Pow((LargeGrid_MinMass - LargeGrid_MaxMass), 2));
-            s_a = (float)((SmallGrid_MaxCruise - SmallGrid_MinCruise) / Math.Pow((SmallGrid_MinMass - SmallGrid_MaxMass), 2));
+            if (UseLogarithmic)
+            {
+                l_a = Math.Pow((LargeGrid_MaxCruise - LargeGrid_MinCruise), (1 / (LargeGrid_MinMass - LargeGrid_MaxMass)));
+                s_a = Math.Pow((SmallGrid_MaxCruise - SmallGrid_MinCruise), (1 / (SmallGrid_MinMass - SmallGrid_MaxMass)));
+            }
+            else
+            {
+                l_a = ((LargeGrid_MaxCruise - LargeGrid_MinCruise) / Math.Pow((LargeGrid_MinMass - LargeGrid_MaxMass), 2));
+                s_a = ((SmallGrid_MaxCruise - SmallGrid_MinCruise) / Math.Pow((SmallGrid_MinMass - SmallGrid_MaxMass), 2));
+            }
+            //Tools.Log(MyLogSeverity.Info, $"\nMaxCruise: {LargeGrid_MaxCruise}\nMinCruise: {LargeGrid_MinCruise}\nMaxMass: {LargeGrid_MaxMass}\nMinMass: {LargeGrid_MinMass}\nA: {l_a}");
+        }
+
+        //public Settings copy()
+        //{
+        //    return new Settings()
+        //    {
+        //        UseLogarithmic = this.UseLogarithmic,
+        //        SpeedLimit = this.SpeedLimit,
+        //        LargeGrid_MaxBoostSpeed = this.LargeGrid_MaxBoostSpeed,
+        //        LargeGrid_MaxCruise = this.LargeGrid_MaxCruise,
+        //        LargeGrid_MaxMass = this.LargeGrid_MaxMass,
+        //        LargeGrid_MinCruise = this.LargeGrid_MinCruise,
+        //        LargeGrid_MinMass = this.LargeGrid_MinMass,
+        //        LargeGrid_ResistanceMultiplier = this.LargeGrid_ResistanceMultiplier,
+        //        SmallGrid_MaxBoostSpeed = this.SmallGrid_MaxBoostSpeed,
+        //        SmallGrid_MaxCruise = this.SmallGrid_MaxCruise,
+        //        SmallGrid_MaxMass = this.SmallGrid_MaxMass,
+        //        SmallGrid_MinCruise = this.SmallGrid_MinCruise,
+        //        SmallGrid_MinMass = this.SmallGrid_MinMass,
+        //        SmallGrid_ResistanceMultiplyer = this.SmallGrid_ResistanceMultiplyer
+        //    };
+        //}
+
+        public override string ToString()
+        {
+            return MyAPIGateway.Utilities.SerializeToXML(this);
         }
 
         public static void Validate(ref Settings s)
@@ -132,9 +173,9 @@ namespace RelativeTopSpeed
 
             #region Small Grid Validation
 
-            if (s.SmallGrid_MinCruise < 0)
+            if (s.SmallGrid_MinCruise < 0.01)
             {
-                s.SmallGrid_MinCruise = 0;
+                s.SmallGrid_MinCruise = 0.01f;
             }
             else if (s.SmallGrid_MinCruise > s.SpeedLimit)
             {
@@ -181,10 +222,10 @@ namespace RelativeTopSpeed
             Settings s = null;
             try
             {
-                if (MyAPIGateway.Utilities.FileExistsInLocalStorage(Filename, typeof(Settings)))
+                if (MyAPIGateway.Utilities.FileExistsInWorldStorage(Filename, typeof(Settings)))
                 {
-                    Logger.Log(MyLogSeverity.Info, "Loading saved settings");
-                    TextReader reader = MyAPIGateway.Utilities.ReadFileInLocalStorage(Filename, typeof(Settings));
+                    Tools.Log(MyLogSeverity.Info, "Loading saved settings");
+                    TextReader reader = MyAPIGateway.Utilities.ReadFileInWorldStorage(Filename, typeof(Settings));
                     string text = reader.ReadToEnd();
                     reader.Close();
 
@@ -194,14 +235,14 @@ namespace RelativeTopSpeed
                 }
                 else
                 {
-                    Logger.Log(MyLogSeverity.Info, "Config file not found. Loading default settings");
+                    Tools.Log(MyLogSeverity.Info, "Config file not found. Loading default settings");
                     s = Default;
                     Save(s);
                 }
             }
             catch (Exception e)
             {
-                Logger.Log(MyLogSeverity.Warning, $"Failed to load saved configuration. Loading defaults\n {e.ToString()}");
+                Tools.Log(MyLogSeverity.Warning, $"Failed to load saved configuration. Loading defaults\n {e.ToString()}");
                 s = Default;
                 Save(s);
             }
@@ -218,14 +259,14 @@ namespace RelativeTopSpeed
             {
                 try
                 {
-                    Logger.Log(MyLogSeverity.Info, "Saving Settings");
-                    TextWriter writer = MyAPIGateway.Utilities.WriteFileInLocalStorage(Filename, typeof(Settings));
+                    Tools.Log(MyLogSeverity.Info, "Saving Settings");
+                    TextWriter writer = MyAPIGateway.Utilities.WriteFileInWorldStorage(Filename, typeof(Settings));
                     writer.Write(MyAPIGateway.Utilities.SerializeToXML(settings));
                     writer.Close();
                 }
                 catch (Exception e)
                 {
-                    Logger.Log(MyLogSeverity.Error, $"Failed to save settings\n{e.ToString()}");
+                    Tools.Log(MyLogSeverity.Error, $"Failed to save settings\n{e.ToString()}");
                 }
             }
         }

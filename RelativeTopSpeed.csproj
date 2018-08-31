@@ -91,10 +91,13 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Logger.cs" />
+    <Compile Include="Coms\Client.cs" />
+    <Compile Include="Coms\Command.cs" />
+    <Compile Include="Coms\ICommunicate.cs" />
+    <Compile Include="Coms\Server.cs" />
+    <Compile Include="Tools.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="RelativeTopSpeed.cs" />
-    <Compile Include="Communication.cs" />
     <Compile Include="Settings.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

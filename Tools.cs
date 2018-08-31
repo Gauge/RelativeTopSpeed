@@ -3,12 +3,13 @@
 namespace RelativeTopSpeed
 {
 
-    public class Logger
+    public class Tools
     {
 
         public static void Log(MyLogSeverity level, string message)
         {
             MyLog.Default.Log(level, $"[RelativeTopSpeed] {message}");
+            MyLog.Default.Flush();
         }
     }
 }

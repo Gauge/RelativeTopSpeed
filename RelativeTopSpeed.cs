@@ -1,4 +1,4 @@
-﻿using Sandbox.Definitions;
+﻿using RelativeTopSpeed.Coms;
 using Sandbox.ModAPI;
 using System;
 using System.Collections.Generic;
@@ -15,33 +15,61 @@ namespace RelativeTopSpeed
     [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
     public class RelativeTopSpeed : MySessionComponentBase
     {
+        private const ushort ModId = 16341;
+        private const string ModName = "Relative Top Speed";
+        private const string CommandKeyword = "/rts";
+
         private List<IMyCubeGrid> Grids = new List<IMyCubeGrid>();
         public static Settings cfg;
-        private Communication coms;
-        bool isInitialized = false;
+        private ICommunicate coms;
+
+        private bool showHud = false;
+        private bool isReady = false;
+        private bool isInitialized = false;
+        private int waitInterval = 0; // this will wait for 5 seconds before sending
 
         public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
         {
-            MyLog.Default.Info($"Starting Relative Speed");
-            MyLog.Default.Flush();
+            Tools.Log(MyLogSeverity.Info, "Starting Relative Speed");
             MyAPIGateway.Entities.OnEntityAdd += AddGrid;
             MyAPIGateway.Entities.OnEntityRemove += RemoveGrid;
 
             cfg = Settings.Load();
-            coms = new Communication();
-        }
 
-        public override void BeforeStart()
-        {
-            MyAPIGateway.Session.OnSessionReady += coms.RequestServerSettings;
+            if (MyAPIGateway.Multiplayer.IsServer)
+            {
+                coms = new Server(ModId, CommandKeyword);
+                coms.OnCommandRecived += HandleClientCommand;
+                coms.OnTerminalInput += HandleServerTerminalInput;
+                isInitialized = true;
+            }
+            else
+            {
+                coms = new Client(ModId, CommandKeyword);
+                coms.OnCommandRecived += HandleServerCommand;
+                coms.OnTerminalInput += HandleClientTerminalInput;
+            }
+
         }
 
         protected override void UnloadData()
         {
+            coms.Close();
             MyAPIGateway.Entities.OnEntityAdd -= AddGrid;
             MyAPIGateway.Entities.OnEntityRemove -= RemoveGrid;
-            MyAPIGateway.Session.OnSessionReady -= coms.RequestServerSettings;
-            coms.Close();
+
+            if (MyAPIGateway.Multiplayer.IsServer)
+            {
+                coms = new Server(ModId, CommandKeyword);
+                coms.OnCommandRecived -= HandleClientCommand;
+                coms.OnTerminalInput -= HandleServerTerminalInput;
+            }
+            else
+            {
+                coms = new Client(ModId, CommandKeyword);
+                coms.OnCommandRecived -= HandleServerCommand;
+                coms.OnTerminalInput -= HandleClientTerminalInput;
+            }
         }
 
         private void AddGrid(IMyEntity ent)
@@ -62,6 +90,21 @@ namespace RelativeTopSpeed
 
         public override void UpdateBeforeSimulation()
         {
+            /*
+             * this is a dumb hack to fix crashing when clients connect.
+             * the session ready event sometimes does not have everything loaded when i trigger the send command
+             */
+            if (!isInitialized && isReady)
+            {
+                if (waitInterval == 600)
+                {
+                    coms.SendCommand(new Command() { Arguments = "update" });
+                    isInitialized = true;
+                }
+
+                waitInterval++;
+            }
+
             MyAPIGateway.Parallel.ForEach(Grids, (grid) =>
             {
                 if (grid.Physics == null) return;
@@ -72,6 +115,8 @@ namespace RelativeTopSpeed
                 Vector3 velocity = grid.Physics.LinearVelocity;
                 float speed = grid.Physics.Speed;
                 float mass = grid.Physics.Mass;
+                float cruiseSpeed = 0;
+                float resistantForce = 0;
 
                 if (isLargeGrid)
                 {
@@ -84,33 +129,47 @@ namespace RelativeTopSpeed
                     boostSpeed = cfg.SmallGrid_MaxBoostSpeed;
                 }
 
-                if (speed < minSpeed) return;
-
-                float cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
-                if (speed >= boostSpeed)
+                if (speed < minSpeed)
                 {
-                    velocity *= boostSpeed / speed;
-                    grid.Physics.SetSpeeds(velocity, grid.Physics.AngularVelocity);
-                    speed = boostSpeed;
-                }
-
-                if (speed >= cruiseSpeed)
-                {
-                    float resistantForce = 0;
-
-                    if (isLargeGrid)
+                    if (showHud)
                     {
-                        resistantForce = cfg.LargeGrid_ResistanceMultiplier * mass * (1 - cruiseSpeed / speed);
+                        cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
                     }
-                    else
+                }
+                else
+                {
+                    cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
+                    if (speed >= boostSpeed)
                     {
-                        resistantForce = cfg.SmallGrid_ResistanceMultiplyer * mass * (1 - cruiseSpeed / speed);
+                        velocity *= boostSpeed / speed;
+                        grid.Physics.SetSpeeds(velocity, grid.Physics.AngularVelocity);
+                        speed = boostSpeed;
                     }
 
-                    velocity *= -resistantForce;
-                    grid.Physics.AddForce(MyPhysicsForceType.APPLY_WORLD_FORCE, velocity, grid.Physics.CenterOfMassWorld, null);
+                    if (speed >= cruiseSpeed)
+                    {
+                        if (isLargeGrid)
+                        {
+                            resistantForce = cfg.LargeGrid_ResistanceMultiplier * mass * (1 - cruiseSpeed / speed);
+                        }
+                        else
+                        {
+                            resistantForce = cfg.SmallGrid_ResistanceMultiplyer * mass * (1 - cruiseSpeed / speed);
+                        }
+
+                        velocity *= -resistantForce;
+                        grid.Physics.AddForce(MyPhysicsForceType.APPLY_WORLD_FORCE, velocity, grid.Physics.CenterOfMassWorld, null);
+                    }
                 }
 
+                if (showHud &&
+                    !MyAPIGateway.Utilities.IsDedicated &&
+                    MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity != null &&
+                    MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity is IMyCubeBlock &&
+                    (MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity as IMyCubeBlock).CubeGrid.EntityId == grid.EntityId)
+                {
+                    MyAPIGateway.Utilities.ShowNotification($"Mass: {mass}  Cruise: {cruiseSpeed.ToString("n3")} Boost: {((speed - cruiseSpeed >= 0) ? (speed - cruiseSpeed).ToString("n3") : "0.000")}  Resistance: {resistantForce.ToString("n0")}", 1);
+                }
             });
         }
 
@@ -130,7 +189,15 @@ namespace RelativeTopSpeed
                 else
                 {
                     float x = (mass - cfg.LargeGrid_MaxMass);
-                    cruiseSpeed = (cfg.l_a * x * x + cfg.LargeGrid_MinCruise);
+
+                    if (cfg.UseLogarithmic)
+                    {
+                        cruiseSpeed = (float)(Math.Pow(cfg.l_a, x) + cfg.LargeGrid_MinCruise);
+                    }
+                    else
+                    {
+                        cruiseSpeed = (float)(cfg.l_a * x * x + cfg.LargeGrid_MinCruise);
+                    }
                 }
             }
             else
@@ -146,11 +213,156 @@ namespace RelativeTopSpeed
                 else
                 {
                     float x = (mass - cfg.SmallGrid_MaxMass);
-                    cruiseSpeed = (cfg.s_a * x * x + cfg.SmallGrid_MinCruise);
+
+                    if (cfg.UseLogarithmic)
+                    {
+                        cruiseSpeed = (float)(Math.Pow(cfg.s_a, x) + cfg.SmallGrid_MinCruise);
+                    }
+                    else
+                    {
+                        cruiseSpeed = (float)(cfg.s_a * x * x + cfg.SmallGrid_MinCruise);
+                    }
                 }
             }
 
             return cruiseSpeed;
         }
+
+        #region Communications
+
+        private void HandleClientTerminalInput(string message)
+        {
+            if (message == "config")
+            {
+                MyAPIGateway.Utilities.ShowMissionScreen("Relative Top Speed", "Configuration", null, cfg.ToString());
+            }
+            else if (message == "hud")
+            {
+                showHud = !showHud;
+                MyAPIGateway.Utilities.ShowMessage(ModName, $"Hud display is {(showHud ? "ON" : "OFF")}");
+            }
+            else
+            {
+                coms.SendCommand(message, steamId: MyAPIGateway.Session.Player.SteamUserId);
+            }
+        }
+
+        private void HandleServerTerminalInput(string message)
+        {
+            HandleClientCommand(new Command() { Arguments = message });
+        }
+
+        private void HandleClientCommand(Command cmd)
+        {
+            string[] args = cmd.Arguments.Split(' ');
+
+            if (args[0] == "update")
+            {
+                coms.SendCommand(new Command()
+                {
+                    DataType = typeof(Settings).FullName,
+                    XMLData = MyAPIGateway.Utilities.SerializeToXML(cfg)
+                }, cmd.SteamId);
+            }
+            else if (args[0] == "load")
+            {
+                if (IsAllowedSpecialOperations(cmd.SteamId))
+                {
+                    cfg = Settings.Load();
+
+                    coms.SendCommand(new Command()
+                    {
+                        DataType = typeof(Settings).FullName,
+                        XMLData = MyAPIGateway.Utilities.SerializeToXML(cfg)
+                    });
+
+                    DisplayMessage("Settings loaded", cmd.SteamId);
+                }
+                else
+                {
+                    DisplayMessage("Load command requires Admin status.", cmd.SteamId);
+                }
+            }
+            else if (args[0] == "hud")
+            {
+                showHud = !showHud;
+                DisplayMessage($"Hud display is {(showHud ? "ON" : "OFF")}", cmd.SteamId);
+            }
+            else if (args[0] == "config")
+            {
+                if (coms.MultiplayerType != MultiplayerTypes.Dedicated)
+                {
+                    MyAPIGateway.Utilities.ShowMissionScreen("Relative Top Speed", "Configuration", null, cfg.ToString());
+                }
+            }
+            else if (args[0] == string.Empty || args[0] == "help")
+            {
+                DisplayMessage("Relative Top Speed\nHUD: displays ship stats when in cockpit\nCONFIG: [BETA] Displays the current config\nLOAD: load world configuration\nUPDATE: requests current server settings", cmd.SteamId);
+            }
+            else
+            {
+                DisplayMessage("Unrecognized Command.", cmd.SteamId);
+            }
+        }
+
+        private void HandleServerCommand(Command cmd)
+        {
+
+            if (cmd.Message != string.Empty && cmd.Message != null)
+            {
+                MyAPIGateway.Utilities.ShowMessage(ModName, cmd.Message);
+            }
+
+            if (cmd.DataType == typeof(Settings).FullName)
+            {
+                try
+                {
+                    cfg = MyAPIGateway.Utilities.SerializeFromXML<Settings>(cmd.XMLData);
+                    cfg.CalculateCurve();
+                }
+                catch (Exception e)
+                {
+                    Tools.Log(MyLogSeverity.Error, $"Failed to deserialize settings from server\n{e.ToString()}");
+                }
+            }
+        }
+
+        private void DisplayMessage(string message, ulong steamId)
+        {
+            if (coms.MultiplayerType == MultiplayerTypes.Dedicated)
+            {
+                coms.SendCommand(new Command() { Message = message }, steamId);
+            }
+            else if (coms.MultiplayerType == MultiplayerTypes.Server && steamId == 0)
+            {
+                MyAPIGateway.Utilities.ShowMessage(ModName, message);
+            }
+        }
+
+        public override void BeforeStart()
+        {
+            if (MyAPIGateway.Multiplayer.IsServer) return;
+
+            MyAPIGateway.Session.OnSessionReady += SessionReady;
+        }
+
+        private void SessionReady()
+        {
+            isReady = true;
+            MyAPIGateway.Session.OnSessionReady -= SessionReady;
+        }
+
+        public static bool IsAllowedSpecialOperations(ulong steamId)
+        {
+            if (MyAPIGateway.Multiplayer.IsServer) return true;
+            return IsAllowedSpecialOperations(MyAPIGateway.Session.GetUserPromoteLevel(steamId));
+        }
+
+        public static bool IsAllowedSpecialOperations(MyPromoteLevel level)
+        {
+            return level == MyPromoteLevel.SpaceMaster || level == MyPromoteLevel.Admin || level == MyPromoteLevel.Owner;
+        }
+
+        #endregion
     }
 }
