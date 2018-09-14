@@ -90,29 +90,7 @@ namespace RelativeTopSpeed
                 l_a = ((LargeGrid_MaxCruise - LargeGrid_MinCruise) / Math.Pow((LargeGrid_MinMass - LargeGrid_MaxMass), 2));
                 s_a = ((SmallGrid_MaxCruise - SmallGrid_MinCruise) / Math.Pow((SmallGrid_MinMass - SmallGrid_MaxMass), 2));
             }
-            //Tools.Log(MyLogSeverity.Info, $"\nMaxCruise: {LargeGrid_MaxCruise}\nMinCruise: {LargeGrid_MinCruise}\nMaxMass: {LargeGrid_MaxMass}\nMinMass: {LargeGrid_MinMass}\nA: {l_a}");
         }
-
-        //public Settings copy()
-        //{
-        //    return new Settings()
-        //    {
-        //        UseLogarithmic = this.UseLogarithmic,
-        //        SpeedLimit = this.SpeedLimit,
-        //        LargeGrid_MaxBoostSpeed = this.LargeGrid_MaxBoostSpeed,
-        //        LargeGrid_MaxCruise = this.LargeGrid_MaxCruise,
-        //        LargeGrid_MaxMass = this.LargeGrid_MaxMass,
-        //        LargeGrid_MinCruise = this.LargeGrid_MinCruise,
-        //        LargeGrid_MinMass = this.LargeGrid_MinMass,
-        //        LargeGrid_ResistanceMultiplier = this.LargeGrid_ResistanceMultiplier,
-        //        SmallGrid_MaxBoostSpeed = this.SmallGrid_MaxBoostSpeed,
-        //        SmallGrid_MaxCruise = this.SmallGrid_MaxCruise,
-        //        SmallGrid_MaxMass = this.SmallGrid_MaxMass,
-        //        SmallGrid_MinCruise = this.SmallGrid_MinCruise,
-        //        SmallGrid_MinMass = this.SmallGrid_MinMass,
-        //        SmallGrid_ResistanceMultiplyer = this.SmallGrid_ResistanceMultiplyer
-        //    };
-        //}
 
         public override string ToString()
         {
@@ -224,7 +202,7 @@ namespace RelativeTopSpeed
             {
                 if (MyAPIGateway.Utilities.FileExistsInWorldStorage(Filename, typeof(Settings)))
                 {
-                    Tools.Log(MyLogSeverity.Info, "Loading saved settings");
+                    MyLog.Default.Info("[RelativeTopSpeed] Loading saved settings");
                     TextReader reader = MyAPIGateway.Utilities.ReadFileInWorldStorage(Filename, typeof(Settings));
                     string text = reader.ReadToEnd();
                     reader.Close();
@@ -235,14 +213,14 @@ namespace RelativeTopSpeed
                 }
                 else
                 {
-                    Tools.Log(MyLogSeverity.Info, "Config file not found. Loading default settings");
+                    MyLog.Default.Info("[RelativeTopSpeed] Config file not found. Loading default settings");
                     s = Default;
                     Save(s);
                 }
             }
             catch (Exception e)
             {
-                Tools.Log(MyLogSeverity.Warning, $"Failed to load saved configuration. Loading defaults\n {e.ToString()}");
+                MyLog.Default.Warning($"[RelativeTopSpeed] Failed to load saved configuration. Loading defaults\n {e.ToString()}");
                 s = Default;
                 Save(s);
             }
@@ -259,14 +237,14 @@ namespace RelativeTopSpeed
             {
                 try
                 {
-                    Tools.Log(MyLogSeverity.Info, "Saving Settings");
+                    MyLog.Default.Info("[RelativeTopSpeed] Saving Settings");
                     TextWriter writer = MyAPIGateway.Utilities.WriteFileInWorldStorage(Filename, typeof(Settings));
                     writer.Write(MyAPIGateway.Utilities.SerializeToXML(settings));
                     writer.Close();
                 }
                 catch (Exception e)
                 {
-                    Tools.Log(MyLogSeverity.Error, $"Failed to save settings\n{e.ToString()}");
+                    MyLog.Default.Error($"[RelativeTopSpeed] Failed to save settings\n{e.ToString()}");
                 }
             }
         }

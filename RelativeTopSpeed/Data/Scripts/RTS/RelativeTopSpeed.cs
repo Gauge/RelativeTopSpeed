@@ -1,5 +1,4 @@
-﻿using RelativeTopSpeed.Coms;
-using Sandbox.ModAPI;
+﻿using Sandbox.ModAPI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,67 +8,64 @@ using VRage.Game.ModAPI;
 using VRage.ModAPI;
 using VRage.Utils;
 using VRageMath;
+using ModNetworkAPI;
 
 namespace RelativeTopSpeed
 {
     [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
     public class RelativeTopSpeed : MySessionComponentBase
     {
-        private const ushort ModId = 16341;
+        private const ushort ComId = 16341;
         private const string ModName = "Relative Top Speed";
         private const string CommandKeyword = "/rts";
 
         private List<IMyCubeGrid> Grids = new List<IMyCubeGrid>();
         public static Settings cfg;
-        private ICommunicate coms;
 
         private bool showHud = false;
         private bool isReady = false;
         private bool isInitialized = false;
         private int waitInterval = 0; // this will wait for 5 seconds before sending
 
+        private NetworkAPI Network => NetworkAPI.Instance;
+
         public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
         {
-            Tools.Log(MyLogSeverity.Info, "Starting Relative Speed");
+            if (!NetworkAPI.IsInitialized)
+            {
+                NetworkAPI.Init(ComId, ModName, CommandKeyword);
+            }
+
+            Network.RegisterChatCommand(string.Empty, Chat_Help);
+            Network.RegisterChatCommand("help", Chat_Help);
+            Network.RegisterChatCommand("hud", Chat_Hud);
+            Network.RegisterChatCommand("config", Chat_Config);
+
+            if (Network.NetworkType == NetworkTypes.Client)
+            {
+                Network.RegisterNetworkCommand(null, ClientCallback_Update);
+                Network.RegisterChatCommand("update", (args) => { Network.SendCommand("update"); });
+                Network.RegisterChatCommand("load", (args) => { Network.SendCommand("load"); });
+            }
+            else
+            {
+                Network.RegisterNetworkCommand("update", ServerCallback_Update);
+                Network.RegisterNetworkCommand("load", ServerCallback_Load);
+                Network.RegisterChatCommand("load", (args) => { cfg = Settings.Load(); });
+            }
+
+            MyLog.Default.Info("[RelativeTopSpeed] Starting.");
             MyAPIGateway.Entities.OnEntityAdd += AddGrid;
             MyAPIGateway.Entities.OnEntityRemove += RemoveGrid;
 
             cfg = Settings.Load();
-
-            if (MyAPIGateway.Multiplayer.IsServer)
-            {
-                coms = new Server(ModId, CommandKeyword);
-                coms.OnCommandRecived += HandleClientCommand;
-                coms.OnTerminalInput += HandleServerTerminalInput;
-                isInitialized = true;
-            }
-            else
-            {
-                coms = new Client(ModId, CommandKeyword);
-                coms.OnCommandRecived += HandleServerCommand;
-                coms.OnTerminalInput += HandleClientTerminalInput;
-            }
-
         }
 
         protected override void UnloadData()
         {
-            coms.Close();
+            Network.Close();
             MyAPIGateway.Entities.OnEntityAdd -= AddGrid;
             MyAPIGateway.Entities.OnEntityRemove -= RemoveGrid;
-
-            if (MyAPIGateway.Multiplayer.IsServer)
-            {
-                coms = new Server(ModId, CommandKeyword);
-                coms.OnCommandRecived -= HandleClientCommand;
-                coms.OnTerminalInput -= HandleServerTerminalInput;
-            }
-            else
-            {
-                coms = new Client(ModId, CommandKeyword);
-                coms.OnCommandRecived -= HandleServerCommand;
-                coms.OnTerminalInput -= HandleClientTerminalInput;
-            }
         }
 
         private void AddGrid(IMyEntity ent)
@@ -98,7 +94,7 @@ namespace RelativeTopSpeed
             {
                 if (waitInterval == 600)
                 {
-                    coms.SendCommand(new Command() { Arguments = "update" });
+                    Network.SendCommand("update");
                     isInitialized = true;
                 }
 
@@ -230,112 +226,50 @@ namespace RelativeTopSpeed
 
         #region Communications
 
-        private void HandleClientTerminalInput(string message)
+        private void Chat_Help(string arguments)
         {
-            if (message == "config")
+            MyAPIGateway.Utilities.ShowMessage(Network.ModName, "Relative Top Speed\nHUD: displays ship stats when in cockpit\nCONFIG: Displays the current config\nLOAD: load world configuration\nUPDATE: requests current server settings");
+        }
+
+        private void Chat_Hud(string arguments)
+        {
+            showHud = !showHud;
+            MyAPIGateway.Utilities.ShowMessage(ModName, $"Hud display is {(showHud ? "ON" : "OFF")}");
+        }
+
+        private void Chat_Config(string arguments)
+        {
+            if (Network.NetworkType != NetworkTypes.Dedicated)
             {
                 MyAPIGateway.Utilities.ShowMissionScreen("Relative Top Speed", "Configuration", null, cfg.ToString());
             }
-            else if (message == "hud")
+        }
+
+        private void ClientCallback_Update(ulong steamId, string CommandString, byte[] data)
+        {
+            if (data != null)
             {
-                showHud = !showHud;
-                MyAPIGateway.Utilities.ShowMessage(ModName, $"Hud display is {(showHud ? "ON" : "OFF")}");
+                cfg = MyAPIGateway.Utilities.SerializeFromBinary<Settings>(data);
+                cfg.CalculateCurve();
+            }
+        }
+
+        private void ServerCallback_Update(ulong steamId, string commandString, byte[] data)
+        {
+            Network.SendCommand(null, data: MyAPIGateway.Utilities.SerializeToBinary(cfg), steamId: steamId);
+        }
+
+        private void ServerCallback_Load(ulong steamId, string commandString, byte[] data)
+        {
+            if (IsAllowedSpecialOperations(steamId))
+            {
+                cfg = Settings.Load();
+
+                Network.SendCommand(null, "Settings loaded", MyAPIGateway.Utilities.SerializeToBinary(cfg));
             }
             else
             {
-                coms.SendCommand(message, steamId: MyAPIGateway.Session.Player.SteamUserId);
-            }
-        }
-
-        private void HandleServerTerminalInput(string message)
-        {
-            HandleClientCommand(new Command() { Arguments = message });
-        }
-
-        private void HandleClientCommand(Command cmd)
-        {
-            string[] args = cmd.Arguments.Split(' ');
-
-            if (args[0] == "update")
-            {
-                coms.SendCommand(new Command()
-                {
-                    DataType = typeof(Settings).FullName,
-                    XMLData = MyAPIGateway.Utilities.SerializeToXML(cfg)
-                }, cmd.SteamId);
-            }
-            else if (args[0] == "load")
-            {
-                if (IsAllowedSpecialOperations(cmd.SteamId))
-                {
-                    cfg = Settings.Load();
-
-                    coms.SendCommand(new Command()
-                    {
-                        DataType = typeof(Settings).FullName,
-                        XMLData = MyAPIGateway.Utilities.SerializeToXML(cfg)
-                    });
-
-                    DisplayMessage("Settings loaded", cmd.SteamId);
-                }
-                else
-                {
-                    DisplayMessage("Load command requires Admin status.", cmd.SteamId);
-                }
-            }
-            else if (args[0] == "hud")
-            {
-                showHud = !showHud;
-                DisplayMessage($"Hud display is {(showHud ? "ON" : "OFF")}", cmd.SteamId);
-            }
-            else if (args[0] == "config")
-            {
-                if (coms.MultiplayerType != MultiplayerTypes.Dedicated)
-                {
-                    MyAPIGateway.Utilities.ShowMissionScreen("Relative Top Speed", "Configuration", null, cfg.ToString());
-                }
-            }
-            else if (args[0] == string.Empty || args[0] == "help")
-            {
-                DisplayMessage("Relative Top Speed\nHUD: displays ship stats when in cockpit\nCONFIG: [BETA] Displays the current config\nLOAD: load world configuration\nUPDATE: requests current server settings", cmd.SteamId);
-            }
-            else
-            {
-                DisplayMessage("Unrecognized Command.", cmd.SteamId);
-            }
-        }
-
-        private void HandleServerCommand(Command cmd)
-        {
-
-            if (cmd.Message != string.Empty && cmd.Message != null)
-            {
-                MyAPIGateway.Utilities.ShowMessage(ModName, cmd.Message);
-            }
-
-            if (cmd.DataType == typeof(Settings).FullName)
-            {
-                try
-                {
-                    cfg = MyAPIGateway.Utilities.SerializeFromXML<Settings>(cmd.XMLData);
-                    cfg.CalculateCurve();
-                }
-                catch (Exception e)
-                {
-                    Tools.Log(MyLogSeverity.Error, $"Failed to deserialize settings from server\n{e.ToString()}");
-                }
-            }
-        }
-
-        private void DisplayMessage(string message, ulong steamId)
-        {
-            if (coms.MultiplayerType == MultiplayerTypes.Dedicated)
-            {
-                coms.SendCommand(new Command() { Message = message }, steamId);
-            }
-            else if (coms.MultiplayerType == MultiplayerTypes.Server && steamId == 0)
-            {
-                MyAPIGateway.Utilities.ShowMessage(ModName, message);
+                Network.SendCommand(null, "Load command requires Admin status.", steamId: steamId);
             }
         }
 
