@@ -32,7 +32,7 @@ namespace ModNetworkAPI
             }
         }
 
-        public void SendCommandToPlayersInRange(Vector3D point, long radius, string commandString, string message = null, byte[] data = null, bool isReliable = true)
+        public void SendCommandToPlayersInRange(Vector3D point, float radius, string commandString, string message = null, byte[] data = null, bool isReliable = true)
         {
             SendCommandToPlayersInRange(new BoundingSphereD(point, radius), commandString, message, data, isReliable);
         }
