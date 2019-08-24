@@ -31,46 +31,46 @@ namespace RelativeTopSpeed
             SmallGrid_MaxMass = 400000
         };
 
-        [ProtoMember]
+        [ProtoMember(1)]
         public bool UseLogarithmic { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(2)]
         public float SpeedLimit { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(3)]
         public float LargeGrid_MinCruise { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(4)]
         public float LargeGrid_MaxCruise { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(5)]
         public float LargeGrid_MaxMass { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(6)]
         public float LargeGrid_MinMass { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(7)]
         public float LargeGrid_MaxBoostSpeed { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(8)]
         public float LargeGrid_ResistanceMultiplier { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(9)]
         public float SmallGrid_MinCruise { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(10)]
         public float SmallGrid_MaxCruise { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(11)]
         public float SmallGrid_MaxMass { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(12)]
         public float SmallGrid_MinMass { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(13)]
         public float SmallGrid_MaxBoostSpeed { get; set; }
 
-        [ProtoMember]
+        [ProtoMember(14)]
         public float SmallGrid_ResistanceMultiplyer { get; set; }
 
         [XmlIgnore]
