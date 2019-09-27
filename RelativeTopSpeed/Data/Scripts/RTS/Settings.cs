@@ -13,26 +13,21 @@ namespace RelativeTopSpeed
     {
         public const string Filename = "RelativeTopSpeed.cfg";
 
-        public static readonly Settings Default = new Settings()
-        {
-            UseLogarithmic = false,
-            SpeedLimit = 140,
-            LargeGrid_MinCruise = 60,
-            LargeGrid_MaxCruise = 110,
-            LargeGrid_MaxBoostSpeed = 140,
-            LargeGrid_ResistanceMultiplier = 1.5f,
-            LargeGrid_MinMass = 200000,
-            LargeGrid_MaxMass = 8000000,
-            SmallGrid_MinCruise = 90,
-            SmallGrid_MaxCruise = 110,
-            SmallGrid_MaxBoostSpeed = 140,
-            SmallGrid_ResistanceMultiplyer = 1f,
-            SmallGrid_MinMass = 10000,
-            SmallGrid_MaxMass = 400000
-        };
-
-        [ProtoMember(1)]
-        public bool UseLogarithmic { get; set; }
+		public static readonly Settings Default = new Settings() {
+			SpeedLimit = 140,
+			LargeGrid_MinCruise = 60,
+			LargeGrid_MaxCruise = 110,
+			LargeGrid_MaxBoostSpeed = 140,
+			LargeGrid_ResistanceMultiplier = 1.5f,
+			LargeGrid_MinMass = 200000,
+			LargeGrid_MaxMass = 8000000,
+			SmallGrid_MinCruise = 90,
+			SmallGrid_MaxCruise = 110,
+			SmallGrid_MaxBoostSpeed = 140,
+			SmallGrid_ResistanceMultiplyer = 1f,
+			SmallGrid_MinMass = 10000,
+			SmallGrid_MaxMass = 400000
+		};
 
         [ProtoMember(2)]
         public float SpeedLimit { get; set; }
@@ -80,16 +75,8 @@ namespace RelativeTopSpeed
 
         public void CalculateCurve()
         {
-            if (UseLogarithmic)
-            {
-                l_a = Math.Pow((LargeGrid_MaxCruise - LargeGrid_MinCruise), (1 / (LargeGrid_MinMass - LargeGrid_MaxMass)));
-                s_a = Math.Pow((SmallGrid_MaxCruise - SmallGrid_MinCruise), (1 / (SmallGrid_MinMass - SmallGrid_MaxMass)));
-            }
-            else
-            {
-                l_a = ((LargeGrid_MaxCruise - LargeGrid_MinCruise) / Math.Pow((LargeGrid_MinMass - LargeGrid_MaxMass), 2));
-                s_a = ((SmallGrid_MaxCruise - SmallGrid_MinCruise) / Math.Pow((SmallGrid_MinMass - SmallGrid_MaxMass), 2));
-            }
+            l_a = ((LargeGrid_MaxCruise - LargeGrid_MinCruise) / Math.Pow((LargeGrid_MinMass - LargeGrid_MaxMass), 2));
+            s_a = ((SmallGrid_MaxCruise - SmallGrid_MinCruise) / Math.Pow((SmallGrid_MinMass - SmallGrid_MaxMass), 2));
 
             MyDefinitionManager.Static.EnvironmentDefinition.LargeShipMaxSpeed = SpeedLimit;
             MyDefinitionManager.Static.EnvironmentDefinition.SmallShipMaxSpeed = SpeedLimit;
@@ -205,7 +192,7 @@ namespace RelativeTopSpeed
             {
                 if (MyAPIGateway.Utilities.FileExistsInWorldStorage(Filename, typeof(Settings)))
                 {
-                    MyLog.Default.Info("[RelativeTopSpeed] Loading saved settings");
+                    MyLog.Default.Info("[RelativeTopSpeed] Loading settings from world storage");
                     TextReader reader = MyAPIGateway.Utilities.ReadFileInWorldStorage(Filename, typeof(Settings));
                     string text = reader.ReadToEnd();
                     reader.Close();
@@ -216,9 +203,24 @@ namespace RelativeTopSpeed
                 }
                 else
                 {
-                    MyLog.Default.Info("[RelativeTopSpeed] Config file not found. Loading default settings");
-                    s = Default;
-                    Save(s);
+                    MyLog.Default.Info("[RelativeTopSpeed] Config file not found. Loading from local storage");
+					if (MyAPIGateway.Utilities.FileExistsInLocalStorage(Filename, typeof(Settings)))
+					{
+						MyLog.Default.Info("[RelativeTopSpeed] Loading settings from local storage");
+						TextReader reader = MyAPIGateway.Utilities.ReadFileInLocalStorage(Filename, typeof(Settings));
+						string text = reader.ReadToEnd();
+						reader.Close();
+
+						s = MyAPIGateway.Utilities.SerializeFromXML<Settings>(text);
+						Validate(ref s);
+						Save(s);
+					}
+					else
+					{
+						MyLog.Default.Info("[RelativeTopSpeed] Config file not found. Loading defaults");
+						s = Default;
+						Save(s);
+					}
                 }
             }
             catch (Exception e)
@@ -240,10 +242,19 @@ namespace RelativeTopSpeed
             {
                 try
                 {
-                    MyLog.Default.Info("[RelativeTopSpeed] Saving Settings");
-                    TextWriter writer = MyAPIGateway.Utilities.WriteFileInWorldStorage(Filename, typeof(Settings));
-                    writer.Write(MyAPIGateway.Utilities.SerializeToXML(settings));
-                    writer.Close();
+					MyLog.Default.Info("[RelativeTopSpeed] Saving Settings");
+					TextWriter writer;
+					if (!MyAPIGateway.Utilities.FileExistsInLocalStorage(Filename, typeof(Settings)))
+					{
+						writer = MyAPIGateway.Utilities.WriteFileInLocalStorage(Filename, typeof(Settings));
+						writer.Write(MyAPIGateway.Utilities.SerializeToXML(settings));
+						writer.Close();
+					}
+
+					writer = MyAPIGateway.Utilities.WriteFileInWorldStorage(Filename, typeof(Settings));
+					writer.Write(MyAPIGateway.Utilities.SerializeToXML(settings));
+					writer.Close();
+
                 }
                 catch (Exception e)
                 {

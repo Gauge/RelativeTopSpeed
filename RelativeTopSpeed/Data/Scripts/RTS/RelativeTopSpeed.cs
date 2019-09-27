@@ -9,294 +9,303 @@ using VRage.ModAPI;
 using VRage.Utils;
 using VRageMath;
 using ModNetworkAPI;
+using VRage.Game.ModAPI.Interfaces;
 
 namespace RelativeTopSpeed
 {
-    [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
-    public class RelativeTopSpeed : MySessionComponentBase
-    {
-        private const ushort ComId = 16341;
-        private const string ModName = "Relative Top Speed";
-        private const string CommandKeyword = "/rts";
+	[MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
+	public class RelativeTopSpeed : MySessionComponentBase
+	{
+		private const ushort ComId = 16341;
+		private const string ModName = "Relative Top Speed";
+		private const string CommandKeyword = "/rts";
 
-        private List<IMyCubeGrid> Grids = new List<IMyCubeGrid>();
-        public static Settings cfg;
+		private List<IMyCubeGrid> Grids = new List<IMyCubeGrid>();
+		private List<IMyCubeGrid> DisabledGrids = new List<IMyCubeGrid>();
+		public static Settings cfg;
 
-        private bool showHud = false;
-        private bool isReady = false;
-        private bool isInitialized = false;
-        private int waitInterval = 0; // this will wait for 5 seconds before sending
+		private bool showHud = false;
+		private bool isReady = false;
+		private bool isInitialized = false;
+		private int waitInterval = 0; // this will wait for 10 seconds before sending
 
-        private NetworkAPI Network => NetworkAPI.Instance;
+		private NetworkAPI Network => NetworkAPI.Instance;
 
-        public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
-        {
-            if (!NetworkAPI.IsInitialized)
-            {
-                NetworkAPI.Init(ComId, ModName, CommandKeyword);
-            }
+		public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
+		{
+			if (!NetworkAPI.IsInitialized)
+			{
+				NetworkAPI.Init(ComId, ModName, CommandKeyword);
+			}
 
-            Network.RegisterChatCommand(string.Empty, Chat_Help);
-            Network.RegisterChatCommand("help", Chat_Help);
-            Network.RegisterChatCommand("hud", Chat_Hud);
-            Network.RegisterChatCommand("config", Chat_Config);
+			Network.RegisterChatCommand(string.Empty, Chat_Help);
+			Network.RegisterChatCommand("help", Chat_Help);
+			Network.RegisterChatCommand("hud", Chat_Hud);
+			Network.RegisterChatCommand("config", Chat_Config);
 
-            if (Network.NetworkType == NetworkTypes.Client)
-            {
-                Network.RegisterNetworkCommand(null, ClientCallback_Update);
-                Network.RegisterChatCommand("update", (args) => { Network.SendCommand("update"); });
-                Network.RegisterChatCommand("load", (args) => { Network.SendCommand("load"); });
-            }
-            else
-            {
-                Network.RegisterNetworkCommand("update", ServerCallback_Update);
-                Network.RegisterNetworkCommand("load", ServerCallback_Load);
-                Network.RegisterChatCommand("load", (args) => { cfg = Settings.Load(); });
-            }
+			if (Network.NetworkType == NetworkTypes.Client)
+			{
+				Network.RegisterNetworkCommand(null, ClientCallback_Update);
+				Network.RegisterChatCommand("update", (args) => { Network.SendCommand("update"); });
+				Network.RegisterChatCommand("load", (args) => { Network.SendCommand("load"); });
+			}
+			else
+			{
+				Network.RegisterNetworkCommand("update", ServerCallback_Update);
+				Network.RegisterNetworkCommand("load", ServerCallback_Load);
+				Network.RegisterChatCommand("load", (args) => { cfg = Settings.Load(); });
+			}
 
-            MyLog.Default.Info("[RelativeTopSpeed] Starting.");
-            MyAPIGateway.Entities.OnEntityAdd += AddGrid;
-            MyAPIGateway.Entities.OnEntityRemove += RemoveGrid;
+			MyLog.Default.Info("[RelativeTopSpeed] Starting.");
+			MyAPIGateway.Entities.OnEntityAdd += AddGrid;
+			MyAPIGateway.Entities.OnEntityRemove += RemoveGrid;
 
-            cfg = Settings.Load();
-        }
+			cfg = Settings.Load();
+		}
 
-        protected override void UnloadData()
-        {
-            Network.Close();
-            MyAPIGateway.Entities.OnEntityAdd -= AddGrid;
-            MyAPIGateway.Entities.OnEntityRemove -= RemoveGrid;
-        }
+		public override void BeforeStart()
+		{
+			if (MyAPIGateway.Multiplayer.IsServer)
+				return;
 
-        private void AddGrid(IMyEntity ent)
-        {
-            if (ent is IMyCubeGrid)
-            {
-                Grids.Add(ent as IMyCubeGrid);
-            }
-        }
+			MyAPIGateway.Session.OnSessionReady += SessionReady;
+		}
 
-        private void RemoveGrid(IMyEntity ent)
-        {
-            if (ent is IMyCubeGrid && Grids.Contains(ent))
-            {
-                Grids.Remove(ent as IMyCubeGrid);
-            }
-        }
+		private void SessionReady()
+		{
+			isReady = true;
+			MyAPIGateway.Session.OnSessionReady -= SessionReady;
+		}
 
-        public override void UpdateBeforeSimulation()
-        {
-            /*
+		protected override void UnloadData()
+		{
+			Network.Close();
+			MyAPIGateway.Entities.OnEntityAdd -= AddGrid;
+			MyAPIGateway.Entities.OnEntityRemove -= RemoveGrid;
+		}
+
+		private void AddGrid(IMyEntity ent)
+		{
+			if (ent is IMyCubeGrid)
+			{
+				ent.OnPhysicsChanged += ValidateAndAssignGrid;
+				ValidateAndAssignGrid(ent);
+			}
+		}
+
+		private void RemoveGrid(IMyEntity ent)
+		{
+			if (ent is IMyCubeGrid)
+			{
+				ent.OnPhysicsChanged -= ValidateAndAssignGrid;
+				Grids.Remove(ent as IMyCubeGrid);
+				DisabledGrids.Remove(ent as IMyCubeGrid);
+			}
+		}
+
+		private void ValidateAndAssignGrid(IMyEntity grid)
+		{
+			if (grid.Physics == null || // static grid 
+				!grid.Physics.Enabled ||
+				(grid.Flags & (EntityFlags)4) != 0) // grid is concealed 
+			{
+				if (!DisabledGrids.Contains(grid))
+				{
+					DisabledGrids.Add(grid as IMyCubeGrid);
+				}
+				Grids.Remove(grid as IMyCubeGrid);
+			}
+			else
+			{
+				if (!Grids.Contains(grid))
+				{
+					Grids.Add(grid as IMyCubeGrid);
+				}
+				DisabledGrids.Remove(grid as IMyCubeGrid);
+			}
+		}
+
+		public override void UpdateBeforeSimulation()
+		{
+			/*
              * this is a dumb hack to fix crashing when clients connect.
              * the session ready event sometimes does not have everything loaded when i trigger the send command
              */
-            if (!isInitialized && isReady)
-            {
-                if (waitInterval == 600)
-                {
-                    Network.SendCommand("update");
-                    isInitialized = true;
-                }
+			if (!isInitialized && isReady)
+			{
+				if (waitInterval == 600)
+				{
+					Network.SendCommand("update");
+					isInitialized = true;
+				}
 
-                waitInterval++;
-            }
+				waitInterval++;
+			}
 
-            MyAPIGateway.Parallel.ForEach(Grids, (grid) =>
-            {
-                if (grid.Physics == null) return;
+			MyAPIGateway.Parallel.ForEach(Grids, UpdateGrid); 
+		}
 
-                bool isLargeGrid = grid.GridSizeEnum == MyCubeSize.Large;
-                float minSpeed;
-                float boostSpeed;
-                Vector3 velocity = grid.Physics.LinearVelocity;
-                float speed = grid.Physics.Speed;
-                float mass = grid.Physics.Mass;
-                float cruiseSpeed = 0;
-                float resistantForce = 0;
+		private void UpdateGrid(IMyCubeGrid grid)
+		{
+			bool isLargeGrid = grid.GridSizeEnum == MyCubeSize.Large;
+			float minSpeed;
+			float boostSpeed;
+			float cruiseSpeed = 0;
+			float resistantForce = 0;
+			float speed = grid.Physics.Speed;
+			float mass = grid.Physics.Mass;
 
-                if (isLargeGrid)
-                {
-                    minSpeed = cfg.LargeGrid_MinCruise;
-                    boostSpeed = cfg.LargeGrid_MaxBoostSpeed;
-                }
-                else
-                {
-                    minSpeed = cfg.SmallGrid_MinCruise;
-                    boostSpeed = cfg.SmallGrid_MaxBoostSpeed;
-                }
+			if (isLargeGrid)
+			{
+				minSpeed = cfg.LargeGrid_MinCruise;
+				boostSpeed = cfg.LargeGrid_MaxBoostSpeed;
+			}
+			else
+			{
+				minSpeed = cfg.SmallGrid_MinCruise;
+				boostSpeed = cfg.SmallGrid_MaxBoostSpeed;
+			}
 
-                if (speed < minSpeed)
-                {
-                    if (showHud)
-                    {
-                        cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
-                    }
-                }
-                else
-                {
-                    cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
-                    if (speed >= boostSpeed)
-                    {
-                        velocity *= boostSpeed / speed;
-                        grid.Physics.SetSpeeds(velocity, grid.Physics.AngularVelocity);
-                        speed = boostSpeed;
-                    }
+			if (speed > minSpeed)
+			{
+				cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
 
-                    if (speed >= cruiseSpeed)
-                    {
-                        if (isLargeGrid)
-                        {
-                            resistantForce = cfg.LargeGrid_ResistanceMultiplier * mass * (1 - cruiseSpeed / speed);
-                        }
-                        else
-                        {
-                            resistantForce = cfg.SmallGrid_ResistanceMultiplyer * mass * (1 - cruiseSpeed / speed);
-                        }
+				if (speed >= cruiseSpeed)
+				{
+					if (isLargeGrid)
+					{
+						resistantForce = cfg.LargeGrid_ResistanceMultiplier * mass * (1 - (cruiseSpeed / speed));
+					}
+					else
+					{
+						resistantForce = cfg.SmallGrid_ResistanceMultiplyer * mass * (1 - (cruiseSpeed / speed));
+					}
 
-                        velocity *= -resistantForce;
-                        grid.Physics.AddForce(MyPhysicsForceType.APPLY_WORLD_FORCE, velocity, grid.Physics.CenterOfMassWorld, null);
-                    }
-                }
+					Vector3 velocity = grid.Physics.LinearVelocity * -resistantForce;
+					grid.Physics.AddForce(MyPhysicsForceType.APPLY_WORLD_FORCE, velocity, grid.Physics.CenterOfMassWorld, null, boostSpeed);
+				}
+			}
 
-                if (showHud &&
-                    !MyAPIGateway.Utilities.IsDedicated &&
-                    MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity != null &&
-                    MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity is IMyCubeBlock &&
-                    (MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity as IMyCubeBlock).CubeGrid.EntityId == grid.EntityId)
-                {
-                    MyAPIGateway.Utilities.ShowNotification($"Mass: {mass}  Cruise: {cruiseSpeed.ToString("n3")} Boost: {((speed - cruiseSpeed >= 0) ? (speed - cruiseSpeed).ToString("n3") : "0.000")}  Resistance: {resistantForce.ToString("n0")}", 1);
-                }
-            });
-        }
+			if (showHud)
+			{
+				IMyControllableEntity controlledEntity = MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity;
+				if (!MyAPIGateway.Utilities.IsDedicated &&
+				controlledEntity != null &&
+				controlledEntity is IMyCubeBlock &&
+				(controlledEntity as IMyCubeBlock).CubeGrid.EntityId == grid.EntityId)
+				{
+					if (cruiseSpeed == 0)
+					{
+						cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
+					}
 
-        private float GetCruiseSpeed(float mass, bool isLargeGrid)
-        {
-            float cruiseSpeed;
-            if (isLargeGrid)
-            {
-                if (mass > cfg.LargeGrid_MaxMass)
-                {
-                    cruiseSpeed = cfg.LargeGrid_MinCruise;
-                }
-                else if (mass < cfg.LargeGrid_MinMass)
-                {
-                    cruiseSpeed = cfg.LargeGrid_MaxCruise;
-                }
-                else
-                {
-                    float x = (mass - cfg.LargeGrid_MaxMass);
+					MyAPIGateway.Utilities.ShowNotification($"Mass: {mass}  Cruise: {cruiseSpeed.ToString("n3")} Boost: {((speed - cruiseSpeed >= 0) ? (speed - cruiseSpeed).ToString("n3") : "0.000")}  Resistance: {resistantForce.ToString("n0")}", 1);
+				}
+			}
 
-                    if (cfg.UseLogarithmic)
-                    {
-                        cruiseSpeed = (float)(Math.Pow(cfg.l_a, x) + cfg.LargeGrid_MinCruise);
-                    }
-                    else
-                    {
-                        cruiseSpeed = (float)(cfg.l_a * x * x + cfg.LargeGrid_MinCruise);
-                    }
-                }
-            }
-            else
-            {
-                if (mass > cfg.SmallGrid_MaxMass)
-                {
-                    cruiseSpeed = cfg.SmallGrid_MinCruise;
-                }
-                else if (mass < cfg.SmallGrid_MinMass)
-                {
-                    cruiseSpeed = cfg.SmallGrid_MaxCruise;
-                }
-                else
-                {
-                    float x = (mass - cfg.SmallGrid_MaxMass);
+		}
 
-                    if (cfg.UseLogarithmic)
-                    {
-                        cruiseSpeed = (float)(Math.Pow(cfg.s_a, x) + cfg.SmallGrid_MinCruise);
-                    }
-                    else
-                    {
-                        cruiseSpeed = (float)(cfg.s_a * x * x + cfg.SmallGrid_MinCruise);
-                    }
-                }
-            }
+		private float GetCruiseSpeed(float mass, bool isLargeGrid)
+		{
+			float cruiseSpeed;
 
-            return cruiseSpeed;
-        }
+			if (isLargeGrid)
+			{
+				if (mass > cfg.LargeGrid_MaxMass)
+				{
+					cruiseSpeed = cfg.LargeGrid_MinCruise;
+				}
+				else if (mass < cfg.LargeGrid_MinMass)
+				{
+					cruiseSpeed = cfg.LargeGrid_MaxCruise;
+				}
+				else
+				{
+					float x = (mass - cfg.LargeGrid_MaxMass);
+					cruiseSpeed = (float)(cfg.l_a * x * x + cfg.LargeGrid_MinCruise);
+				}
+			}
+			else
+			{
+				if (mass > cfg.SmallGrid_MaxMass)
+				{
+					cruiseSpeed = cfg.SmallGrid_MinCruise;
+				}
+				else if (mass < cfg.SmallGrid_MinMass)
+				{
+					cruiseSpeed = cfg.SmallGrid_MaxCruise;
+				}
+				else
+				{
+					float x = (mass - cfg.SmallGrid_MaxMass);
+					cruiseSpeed = (float)(cfg.s_a * x * x + cfg.SmallGrid_MinCruise);
+				}
+			}
 
-        #region Communications
+			return cruiseSpeed;
+		}
 
-        private void Chat_Help(string arguments)
-        {
-            MyAPIGateway.Utilities.ShowMessage(Network.ModName, "Relative Top Speed\nHUD: displays ship stats when in cockpit\nCONFIG: Displays the current config\nLOAD: load world configuration\nUPDATE: requests current server settings");
-        }
+		#region Communications
 
-        private void Chat_Hud(string arguments)
-        {
-            showHud = !showHud;
-            MyAPIGateway.Utilities.ShowMessage(ModName, $"Hud display is {(showHud ? "ON" : "OFF")}");
-        }
+		private void Chat_Help(string arguments)
+		{
+			MyAPIGateway.Utilities.ShowMessage(Network.ModName, "Relative Top Speed\nHUD: displays ship stats when in cockpit\nCONFIG: Displays the current config\nLOAD: load world configuration\nUPDATE: requests current server settings");
+		}
 
-        private void Chat_Config(string arguments)
-        {
-            if (Network.NetworkType != NetworkTypes.Dedicated)
-            {
-                MyAPIGateway.Utilities.ShowMissionScreen("Relative Top Speed", "Configuration", null, cfg.ToString());
-            }
-        }
+		private void Chat_Hud(string arguments)
+		{
+			showHud = !showHud;
+			MyAPIGateway.Utilities.ShowMessage(ModName, $"Hud display is {(showHud ? "ON" : "OFF")}");
+		}
 
-        private void ClientCallback_Update(ulong steamId, string CommandString, byte[] data)
-        {
-            if (data != null)
-            {
-                cfg = MyAPIGateway.Utilities.SerializeFromBinary<Settings>(data);
-                cfg.CalculateCurve();
-            }
-        }
+		private void Chat_Config(string arguments)
+		{
+			if (Network.NetworkType != NetworkTypes.Dedicated)
+			{
+				MyAPIGateway.Utilities.ShowMissionScreen("Relative Top Speed", "Configuration", null, cfg.ToString());
+			}
+		}
 
-        private void ServerCallback_Update(ulong steamId, string commandString, byte[] data)
-        {
-            Network.SendCommand(null, data: MyAPIGateway.Utilities.SerializeToBinary(cfg), steamId: steamId);
-        }
+		private void ClientCallback_Update(ulong steamId, string CommandString, byte[] data)
+		{
+			if (data != null)
+			{
+				cfg = MyAPIGateway.Utilities.SerializeFromBinary<Settings>(data);
+				cfg.CalculateCurve();
+			}
+		}
 
-        private void ServerCallback_Load(ulong steamId, string commandString, byte[] data)
-        {
-            if (IsAllowedSpecialOperations(steamId))
-            {
-                cfg = Settings.Load();
+		private void ServerCallback_Update(ulong steamId, string commandString, byte[] data)
+		{
+			Network.SendCommand(null, data: MyAPIGateway.Utilities.SerializeToBinary(cfg), steamId: steamId);
+		}
 
-                Network.SendCommand(null, "Settings loaded", MyAPIGateway.Utilities.SerializeToBinary(cfg));
-            }
-            else
-            {
-                Network.SendCommand(null, "Load command requires Admin status.", steamId: steamId);
-            }
-        }
+		private void ServerCallback_Load(ulong steamId, string commandString, byte[] data)
+		{
+			if (IsAllowedSpecialOperations(steamId))
+			{
+				cfg = Settings.Load();
 
-        public override void BeforeStart()
-        {
-            if (MyAPIGateway.Multiplayer.IsServer) return;
+				Network.SendCommand(null, "Settings loaded", MyAPIGateway.Utilities.SerializeToBinary(cfg));
+			}
+			else
+			{
+				Network.SendCommand(null, "Load command requires Admin status.", steamId: steamId);
+			}
+		}
 
-            MyAPIGateway.Session.OnSessionReady += SessionReady;
-        }
+		public static bool IsAllowedSpecialOperations(ulong steamId)
+		{
+			if (MyAPIGateway.Multiplayer.IsServer)
+				return true;
+			return IsAllowedSpecialOperations(MyAPIGateway.Session.GetUserPromoteLevel(steamId));
+		}
 
-        private void SessionReady()
-        {
-            isReady = true;
-            MyAPIGateway.Session.OnSessionReady -= SessionReady;
-        }
+		public static bool IsAllowedSpecialOperations(MyPromoteLevel level)
+		{
+			return level == MyPromoteLevel.SpaceMaster || level == MyPromoteLevel.Admin || level == MyPromoteLevel.Owner;
+		}
 
-        public static bool IsAllowedSpecialOperations(ulong steamId)
-        {
-            if (MyAPIGateway.Multiplayer.IsServer) return true;
-            return IsAllowedSpecialOperations(MyAPIGateway.Session.GetUserPromoteLevel(steamId));
-        }
-
-        public static bool IsAllowedSpecialOperations(MyPromoteLevel level)
-        {
-            return level == MyPromoteLevel.SpaceMaster || level == MyPromoteLevel.Admin || level == MyPromoteLevel.Owner;
-        }
-
-        #endregion
-    }
+		#endregion
+	}
 }
