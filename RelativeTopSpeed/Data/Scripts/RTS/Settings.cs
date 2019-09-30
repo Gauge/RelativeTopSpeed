@@ -29,7 +29,10 @@ namespace RelativeTopSpeed
 			SmallGrid_MaxMass = 400000
 		};
 
-        [ProtoMember(2)]
+		[XmlIgnore]
+		public bool IsInitialized = false;
+
+		[ProtoMember(2)]
         public float SpeedLimit { get; set; }
 
         [ProtoMember(3)]
@@ -187,6 +190,12 @@ namespace RelativeTopSpeed
 
         public static Settings Load()
         {
+
+			if (!MyAPIGateway.Multiplayer.IsServer)
+			{
+				return Default;
+			}
+
             Settings s = null;
             try
             {
@@ -233,6 +242,7 @@ namespace RelativeTopSpeed
             MyDefinitionManager.Static.EnvironmentDefinition.LargeShipMaxSpeed = s.SpeedLimit;
             MyDefinitionManager.Static.EnvironmentDefinition.SmallShipMaxSpeed = s.SpeedLimit;
             s.CalculateCurve();
+			s.IsInitialized = true;
             return s;
         }
 

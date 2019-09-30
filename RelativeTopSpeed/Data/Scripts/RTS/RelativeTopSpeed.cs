@@ -1,15 +1,14 @@
-﻿using Sandbox.ModAPI;
-using System;
+﻿using ModNetworkAPI;
+using Sandbox.Game.Entities;
+using Sandbox.ModAPI;
 using System.Collections.Generic;
-using System.Linq;
 using VRage.Game;
 using VRage.Game.Components;
 using VRage.Game.ModAPI;
 using VRage.ModAPI;
 using VRage.Utils;
 using VRageMath;
-using ModNetworkAPI;
-using VRage.Game.ModAPI.Interfaces;
+using IMyControllableEntity = VRage.Game.ModAPI.Interfaces.IMyControllableEntity;
 
 namespace RelativeTopSpeed
 {
@@ -20,14 +19,14 @@ namespace RelativeTopSpeed
 		private const string ModName = "Relative Top Speed";
 		private const string CommandKeyword = "/rts";
 
-		private List<IMyCubeGrid> Grids = new List<IMyCubeGrid>();
-		private List<IMyCubeGrid> DisabledGrids = new List<IMyCubeGrid>();
 		public static Settings cfg;
 
 		private bool showHud = false;
-		private bool isReady = false;
-		private bool isInitialized = false;
-		private int waitInterval = 0; // this will wait for 10 seconds before sending
+		private bool debug = false;
+		private byte waitInterval = 0;
+		private List<IMyCubeGrid> ActiveGrids = new List<IMyCubeGrid>();
+		private List<IMyCubeGrid> PassiveGrids = new List<IMyCubeGrid>();
+		private List<IMyCubeGrid> DisabledGrids = new List<IMyCubeGrid>();
 
 		private NetworkAPI Network => NetworkAPI.Instance;
 
@@ -42,6 +41,7 @@ namespace RelativeTopSpeed
 			Network.RegisterChatCommand("help", Chat_Help);
 			Network.RegisterChatCommand("hud", Chat_Hud);
 			Network.RegisterChatCommand("config", Chat_Config);
+			Network.RegisterChatCommand("debug", Chat_Debug);
 
 			if (Network.NetworkType == NetworkTypes.Client)
 			{
@@ -63,20 +63,6 @@ namespace RelativeTopSpeed
 			cfg = Settings.Load();
 		}
 
-		public override void BeforeStart()
-		{
-			if (MyAPIGateway.Multiplayer.IsServer)
-				return;
-
-			MyAPIGateway.Session.OnSessionReady += SessionReady;
-		}
-
-		private void SessionReady()
-		{
-			isReady = true;
-			MyAPIGateway.Session.OnSessionReady -= SessionReady;
-		}
-
 		protected override void UnloadData()
 		{
 			Network.Close();
@@ -86,89 +72,171 @@ namespace RelativeTopSpeed
 
 		private void AddGrid(IMyEntity ent)
 		{
-			if (ent is IMyCubeGrid)
-			{
-				ent.OnPhysicsChanged += ValidateAndAssignGrid;
-				ValidateAndAssignGrid(ent);
-			}
+			MyCubeGrid grid = ent as MyCubeGrid;
+			if (grid == null || grid.Physics == null)
+				return;
+
+			RegisterOrUpdateGridStatus(grid, grid.IsStatic);
+			grid.OnStaticChanged += RegisterOrUpdateGridStatus;
 		}
 
 		private void RemoveGrid(IMyEntity ent)
 		{
-			if (ent is IMyCubeGrid)
-			{
-				ent.OnPhysicsChanged -= ValidateAndAssignGrid;
-				Grids.Remove(ent as IMyCubeGrid);
-				DisabledGrids.Remove(ent as IMyCubeGrid);
-			}
+			MyCubeGrid grid = ent as MyCubeGrid;
+			if (grid == null || grid.Physics == null)
+				return;
+
+			grid.OnStaticChanged -= RegisterOrUpdateGridStatus;
+			ActiveGrids.Remove(grid);
+			PassiveGrids.Remove(grid);
+			DisabledGrids.Remove(grid);
 		}
 
-		private void ValidateAndAssignGrid(IMyEntity grid)
+		private bool IsMoving(IMyEntity ent)
 		{
-			if (grid.Physics == null || // static grid 
-				!grid.Physics.Enabled ||
-				(grid.Flags & (EntityFlags)4) != 0) // grid is concealed 
+			return ent.Physics.LinearVelocity.LengthSquared() > 1 || ent.Physics.LinearAcceleration.LengthSquared() > 1;
+		}
+
+		private void RegisterOrUpdateGridStatus(MyCubeGrid grid, bool isStatic)
+		{
+			if (isStatic)
 			{
 				if (!DisabledGrids.Contains(grid))
 				{
-					DisabledGrids.Add(grid as IMyCubeGrid);
+					DisabledGrids.Add(grid);
 				}
-				Grids.Remove(grid as IMyCubeGrid);
+
+				PassiveGrids.Remove(grid);
+				ActiveGrids.Remove(grid);
+			}
+			else if (IsMoving(grid))
+			{
+				if (!ActiveGrids.Contains(grid))
+				{
+					ActiveGrids.Add(grid);
+				}
+
+				PassiveGrids.Remove(grid);
+				DisabledGrids.Remove(grid);
 			}
 			else
 			{
-				if (!Grids.Contains(grid))
+				if (!PassiveGrids.Contains(grid))
 				{
-					Grids.Add(grid as IMyCubeGrid);
+					PassiveGrids.Add(grid);
 				}
-				DisabledGrids.Remove(grid as IMyCubeGrid);
+
+				ActiveGrids.Remove(grid);
+				DisabledGrids.Remove(grid);
 			}
 		}
 
 		public override void UpdateBeforeSimulation()
 		{
-			/*
-             * this is a dumb hack to fix crashing when clients connect.
-             * the session ready event sometimes does not have everything loaded when i trigger the send command
-             */
-			if (!isInitialized && isReady)
+			lock (ActiveGrids)
 			{
-				if (waitInterval == 600)
+				lock (DisabledGrids)
 				{
-					Network.SendCommand("update");
-					isInitialized = true;
-				}
+					lock (PassiveGrids)
+					{
+						// continue to request server settings till received
+						if (!cfg.IsInitialized && waitInterval == 120)
+						{
+							Network.SendCommand("update");
+						}
 
-				waitInterval++;
+						// update active / passive grids every 4 seconds
+						if (waitInterval == 0)
+						{
+							for (int i = 0; i < PassiveGrids.Count; i++)
+							{
+								IMyCubeGrid grid = PassiveGrids[i];
+
+								//if (grid == null || grid.Physics == null)
+								//{
+								//	MyLog.Default.Info($"[RTS] {grid == null}  {((grid == null) ? "" : (grid.Physics == null).ToString())}");
+								//	PassiveGrids.RemoveAt(i);
+								//	i--;
+								//}
+								//else 
+								if (IsMoving(grid))
+								{
+									if (!ActiveGrids.Contains(grid))
+									{
+										ActiveGrids.Add(grid);
+									}
+
+									PassiveGrids.Remove(grid);
+									i--;
+								}
+							}
+
+							for (int i = 0; i < ActiveGrids.Count; i++)
+							{
+								IMyCubeGrid grid = ActiveGrids[i];
+
+								//if (grid == null || grid.Physics == null)
+								//{
+								//	MyLog.Default.Info($"[RTS] {grid == null}  {((grid == null) ? "" : (grid.Physics == null).ToString())}");
+								//	ActiveGrids.RemoveAt(i);
+								//	i--;
+								//}
+								//else 
+								if (!IsMoving(grid))
+								{
+									if (!PassiveGrids.Contains(grid))
+									{
+										PassiveGrids.Add(grid);
+									}
+
+									ActiveGrids.Remove(grid);
+									i--;
+								}
+							}
+
+							waitInterval = 255; // reset
+						}
+
+						MyAPIGateway.Parallel.For(0, ActiveGrids.Count, UpdateGrid, 50);
+
+						if (showHud && !MyAPIGateway.Utilities.IsDedicated)
+						{
+							IMyControllableEntity controlledEntity = MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity;
+							if (controlledEntity != null && controlledEntity is IMyCubeBlock && (controlledEntity as IMyCubeBlock).CubeGrid.Physics != null)
+							{
+								IMyCubeGrid grid = (controlledEntity as IMyCubeBlock).CubeGrid;
+								float mass = grid.Physics.Mass;
+								float speed = grid.Physics.Speed;
+								float cruiseSpeed = GetCruiseSpeed(mass, grid.GridSizeEnum == MyCubeSize.Large);
+
+								MyAPIGateway.Utilities.ShowNotification($"Mass: {mass}  Cruise: {cruiseSpeed.ToString("n3")} Boost: {((speed - cruiseSpeed >= 0) ? (speed - cruiseSpeed).ToString("n3") : "0.000")}", 1);
+							}
+						}
+
+						if (debug && IsAllowedSpecialOperations(MyAPIGateway.Session.LocalHumanPlayer.SteamUserId))
+						{
+							MyAPIGateway.Utilities.ShowNotification($"Grids - Active: {ActiveGrids.Count}  Passive: {PassiveGrids.Count}  Disabled: {DisabledGrids.Count}", 1);
+						}
+					}
+				}
 			}
 
-			MyAPIGateway.Parallel.ForEach(Grids, UpdateGrid); 
+			waitInterval--;
 		}
 
-		private void UpdateGrid(IMyCubeGrid grid)
+		private void UpdateGrid(int index)
 		{
-			bool isLargeGrid = grid.GridSizeEnum == MyCubeSize.Large;
-			float minSpeed;
-			float boostSpeed;
-			float cruiseSpeed = 0;
-			float resistantForce = 0;
-			float speed = grid.Physics.Speed;
-			float mass = grid.Physics.Mass;
+			IMyCubeGrid grid = ActiveGrids[index];
 
-			if (isLargeGrid)
-			{
-				minSpeed = cfg.LargeGrid_MinCruise;
-				boostSpeed = cfg.LargeGrid_MaxBoostSpeed;
-			}
-			else
-			{
-				minSpeed = cfg.SmallGrid_MinCruise;
-				boostSpeed = cfg.SmallGrid_MaxBoostSpeed;
-			}
+			float speed = grid.Physics.Speed;
+			bool isLargeGrid = grid.GridSizeEnum == MyCubeSize.Large;
+			float minSpeed = (isLargeGrid) ? cfg.LargeGrid_MinCruise : cfg.SmallGrid_MinCruise;
 
 			if (speed > minSpeed)
 			{
-				cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
+				float resistantForce;
+				float mass = grid.Physics.Mass;
+				float cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
 
 				if (speed >= cruiseSpeed)
 				{
@@ -182,27 +250,9 @@ namespace RelativeTopSpeed
 					}
 
 					Vector3 velocity = grid.Physics.LinearVelocity * -resistantForce;
-					grid.Physics.AddForce(MyPhysicsForceType.APPLY_WORLD_FORCE, velocity, grid.Physics.CenterOfMassWorld, null, boostSpeed);
+					grid.Physics.AddForce(MyPhysicsForceType.APPLY_WORLD_FORCE, velocity, grid.Physics.CenterOfMassWorld, null, ((isLargeGrid) ? cfg.LargeGrid_MaxBoostSpeed : cfg.SmallGrid_MaxBoostSpeed));
 				}
 			}
-
-			if (showHud)
-			{
-				IMyControllableEntity controlledEntity = MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity;
-				if (!MyAPIGateway.Utilities.IsDedicated &&
-				controlledEntity != null &&
-				controlledEntity is IMyCubeBlock &&
-				(controlledEntity as IMyCubeBlock).CubeGrid.EntityId == grid.EntityId)
-				{
-					if (cruiseSpeed == 0)
-					{
-						cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
-					}
-
-					MyAPIGateway.Utilities.ShowNotification($"Mass: {mass}  Cruise: {cruiseSpeed.ToString("n3")} Boost: {((speed - cruiseSpeed >= 0) ? (speed - cruiseSpeed).ToString("n3") : "0.000")}  Resistance: {resistantForce.ToString("n0")}", 1);
-				}
-			}
-
 		}
 
 		private float GetCruiseSpeed(float mass, bool isLargeGrid)
@@ -258,6 +308,12 @@ namespace RelativeTopSpeed
 			MyAPIGateway.Utilities.ShowMessage(ModName, $"Hud display is {(showHud ? "ON" : "OFF")}");
 		}
 
+		private void Chat_Debug(string arguments)
+		{
+			debug = !debug;
+			MyAPIGateway.Utilities.ShowMessage(ModName, $"Debug display is {(showHud ? "ON" : "OFF")}");
+		}
+
 		private void Chat_Config(string arguments)
 		{
 			if (Network.NetworkType != NetworkTypes.Dedicated)
@@ -272,6 +328,7 @@ namespace RelativeTopSpeed
 			{
 				cfg = MyAPIGateway.Utilities.SerializeFromBinary<Settings>(data);
 				cfg.CalculateCurve();
+				cfg.IsInitialized = true;
 			}
 		}
 
