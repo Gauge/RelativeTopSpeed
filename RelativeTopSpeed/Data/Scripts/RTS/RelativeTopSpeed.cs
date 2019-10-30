@@ -140,25 +140,17 @@ namespace RelativeTopSpeed
 					lock (PassiveGrids)
 					{
 						// continue to request server settings till received
-						if (!cfg.IsInitialized && waitInterval == 120)
+						if (!cfg.IsInitialized && waitInterval == 20)
 						{
 							Network.SendCommand("update");
 						}
 
-						// update active / passive grids every 4 seconds
+						// update active / passive grids every 3 seconds
 						if (waitInterval == 0)
 						{
 							for (int i = 0; i < PassiveGrids.Count; i++)
 							{
 								IMyCubeGrid grid = PassiveGrids[i];
-
-								//if (grid == null || grid.Physics == null)
-								//{
-								//	MyLog.Default.Info($"[RTS] {grid == null}  {((grid == null) ? "" : (grid.Physics == null).ToString())}");
-								//	PassiveGrids.RemoveAt(i);
-								//	i--;
-								//}
-								//else 
 								if (IsMoving(grid))
 								{
 									if (!ActiveGrids.Contains(grid))
@@ -174,14 +166,6 @@ namespace RelativeTopSpeed
 							for (int i = 0; i < ActiveGrids.Count; i++)
 							{
 								IMyCubeGrid grid = ActiveGrids[i];
-
-								//if (grid == null || grid.Physics == null)
-								//{
-								//	MyLog.Default.Info($"[RTS] {grid == null}  {((grid == null) ? "" : (grid.Physics == null).ToString())}");
-								//	ActiveGrids.RemoveAt(i);
-								//	i--;
-								//}
-								//else 
 								if (!IsMoving(grid))
 								{
 									if (!PassiveGrids.Contains(grid))
@@ -194,28 +178,31 @@ namespace RelativeTopSpeed
 								}
 							}
 
-							waitInterval = 255; // reset
+							waitInterval = 180; // reset
 						}
 
-						MyAPIGateway.Parallel.For(0, ActiveGrids.Count, UpdateGrid, 50);
+						MyAPIGateway.Parallel.For(0, ActiveGrids.Count, UpdateGrid);
 
-						if (showHud && !MyAPIGateway.Utilities.IsDedicated)
+						if (!MyAPIGateway.Utilities.IsDedicated)
 						{
-							IMyControllableEntity controlledEntity = MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity;
-							if (controlledEntity != null && controlledEntity is IMyCubeBlock && (controlledEntity as IMyCubeBlock).CubeGrid.Physics != null)
+							if (showHud)
 							{
-								IMyCubeGrid grid = (controlledEntity as IMyCubeBlock).CubeGrid;
-								float mass = grid.Physics.Mass;
-								float speed = grid.Physics.Speed;
-								float cruiseSpeed = GetCruiseSpeed(mass, grid.GridSizeEnum == MyCubeSize.Large);
+								IMyControllableEntity controlledEntity = MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity;
+								if (controlledEntity != null && controlledEntity is IMyCubeBlock && (controlledEntity as IMyCubeBlock).CubeGrid.Physics != null)
+								{
+									IMyCubeGrid grid = (controlledEntity as IMyCubeBlock).CubeGrid;
+									float mass = grid.Physics.Mass;
+									float speed = grid.Physics.Speed;
+									float cruiseSpeed = GetCruiseSpeed(mass, grid.GridSizeEnum == MyCubeSize.Large);
 
-								MyAPIGateway.Utilities.ShowNotification($"Mass: {mass}  Cruise: {cruiseSpeed.ToString("n3")} Boost: {((speed - cruiseSpeed >= 0) ? (speed - cruiseSpeed).ToString("n3") : "0.000")}", 1);
+									MyAPIGateway.Utilities.ShowNotification($"Mass: {mass}  Cruise: {cruiseSpeed.ToString("n3")} Boost: {((speed - cruiseSpeed >= 0) ? (speed - cruiseSpeed).ToString("n3") : "0.000")}", 1);
+								}
 							}
-						}
 
-						if (debug && IsAllowedSpecialOperations(MyAPIGateway.Session.LocalHumanPlayer.SteamUserId))
-						{
-							MyAPIGateway.Utilities.ShowNotification($"Grids - Active: {ActiveGrids.Count}  Passive: {PassiveGrids.Count}  Disabled: {DisabledGrids.Count}", 1);
+							if (debug && IsAllowedSpecialOperations(MyAPIGateway.Session.LocalHumanPlayer.SteamUserId))
+							{
+								MyAPIGateway.Utilities.ShowNotification($"Grids - Active: {ActiveGrids.Count}  Passive: {PassiveGrids.Count}  Disabled: {DisabledGrids.Count}", 1);
+							}
 						}
 					}
 				}
@@ -226,11 +213,17 @@ namespace RelativeTopSpeed
 
 		private void UpdateGrid(int index)
 		{
+
 			IMyCubeGrid grid = ActiveGrids[index];
 
 			float speed = grid.Physics.Speed;
 			bool isLargeGrid = grid.GridSizeEnum == MyCubeSize.Large;
 			float minSpeed = (isLargeGrid) ? cfg.LargeGrid_MinCruise : cfg.SmallGrid_MinCruise;
+
+			//if (!MyAPIGateway.Utilities.IsDedicated && debug)
+			//{
+			//	MyAPIGateway.Utilities.ShowNotification($"Active Grid: {grid.CustomName} Speed: {speed.ToString("n2")}",1);
+			//}
 
 			if (speed > minSpeed)
 			{
