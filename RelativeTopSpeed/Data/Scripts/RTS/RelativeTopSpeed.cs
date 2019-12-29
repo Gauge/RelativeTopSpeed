@@ -1,4 +1,5 @@
 ﻿using ModNetworkAPI;
+using Sandbox.Definitions;
 using Sandbox.Game.Entities;
 using Sandbox.ModAPI;
 using System.Collections.Generic;
@@ -6,6 +7,7 @@ using VRage.Game;
 using VRage.Game.Components;
 using VRage.Game.ModAPI;
 using VRage.ModAPI;
+using VRage.ObjectBuilders;
 using VRage.Utils;
 using VRageMath;
 using IMyControllableEntity = VRage.Game.ModAPI.Interfaces.IMyControllableEntity;
@@ -24,14 +26,18 @@ namespace RelativeTopSpeed
 		private bool showHud = false;
 		private bool debug = false;
 		private byte waitInterval = 0;
-		private List<IMyCubeGrid> ActiveGrids = new List<IMyCubeGrid>();
-		private List<IMyCubeGrid> PassiveGrids = new List<IMyCubeGrid>();
-		private List<IMyCubeGrid> DisabledGrids = new List<IMyCubeGrid>();
+		private List<MyCubeGrid> ActiveGrids = new List<MyCubeGrid>();
+		private List<MyCubeGrid> PassiveGrids = new List<MyCubeGrid>();
+		private List<MyCubeGrid> DisabledGrids = new List<MyCubeGrid>();
+
+		private MyObjectBuilderType thrustTypeId = null;
 
 		private NetworkAPI Network => NetworkAPI.Instance;
 
 		public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
 		{
+			thrustTypeId = MyObjectBuilderType.ParseBackwardsCompatible("Thrust");
+
 			if (!NetworkAPI.IsInitialized)
 			{
 				NetworkAPI.Init(ComId, ModName, CommandKeyword);
@@ -109,7 +115,8 @@ namespace RelativeTopSpeed
 				PassiveGrids.Remove(grid);
 				ActiveGrids.Remove(grid);
 			}
-			else if (IsMoving(grid))
+			else if (IsMoving(grid) &&
+				(cfg.IgnoreGridsWithoutThrust && grid.BlocksCounters.ContainsKey(thrustTypeId) && grid.BlocksCounters[thrustTypeId] > 0))
 			{
 				if (!ActiveGrids.Contains(grid))
 				{
@@ -150,7 +157,16 @@ namespace RelativeTopSpeed
 						{
 							for (int i = 0; i < PassiveGrids.Count; i++)
 							{
-								IMyCubeGrid grid = PassiveGrids[i];
+
+								MyCubeGrid grid = PassiveGrids[i];
+								bool isContained = grid.BlocksCounters.ContainsKey(thrustTypeId);
+								if (cfg.IgnoreGridsWithoutThrust && 
+									(!isContained || 
+										(isContained && grid.BlocksCounters[thrustTypeId] == 0)))
+								{
+									continue;
+								}
+								
 								if (IsMoving(grid))
 								{
 									if (!ActiveGrids.Contains(grid))
@@ -165,8 +181,12 @@ namespace RelativeTopSpeed
 
 							for (int i = 0; i < ActiveGrids.Count; i++)
 							{
-								IMyCubeGrid grid = ActiveGrids[i];
-								if (!IsMoving(grid))
+								MyCubeGrid grid = ActiveGrids[i];
+								bool isContained = grid.BlocksCounters.ContainsKey(thrustTypeId);
+								if (!IsMoving(grid) || 
+									cfg.IgnoreGridsWithoutThrust &&
+										(!isContained ||
+											(isContained && grid.BlocksCounters[thrustTypeId] == 0)))
 								{
 									if (!PassiveGrids.Contains(grid))
 									{

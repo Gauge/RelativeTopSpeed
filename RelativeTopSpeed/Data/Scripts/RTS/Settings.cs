@@ -14,7 +14,8 @@ namespace RelativeTopSpeed
         public const string Filename = "RelativeTopSpeed.cfg";
 
 		public static readonly Settings Default = new Settings() {
-			SpeedLimit = 140,
+			IgnoreGridsWithoutThrust = true,
+            SpeedLimit = 140,
 			LargeGrid_MinCruise = 60,
 			LargeGrid_MaxCruise = 110,
 			LargeGrid_MaxBoostSpeed = 140,
@@ -31,6 +32,9 @@ namespace RelativeTopSpeed
 
 		[XmlIgnore]
 		public bool IsInitialized = false;
+
+        [ProtoMember(1)]
+        public bool IgnoreGridsWithoutThrust { get; set; }
 
 		[ProtoMember(2)]
         public float SpeedLimit { get; set; }
