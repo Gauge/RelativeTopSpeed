@@ -1,9 +1,12 @@
 ﻿using ProtoBuf;
+using Sandbox.Common.ObjectBuilders;
 using Sandbox.Definitions;
 using Sandbox.ModAPI;
 using System;
 using System.IO;
 using System.Xml.Serialization;
+using VRage.Collections;
+using VRage.Game;
 using VRage.Utils;
 
 namespace RelativeTopSpeed
@@ -13,8 +16,9 @@ namespace RelativeTopSpeed
     {
         public const string Filename = "RelativeTopSpeed.cfg";
 
-		public static readonly Settings Default = new Settings() {
-			IgnoreGridsWithoutThrust = true,
+        public static readonly Settings Default = new Settings() {
+            IgnoreGridsWithoutThrust = true,
+            ParachuteDeployHeight = 400,
             SpeedLimit = 140,
 			LargeGrid_MinCruise = 60,
 			LargeGrid_MaxCruise = 110,
@@ -33,46 +37,49 @@ namespace RelativeTopSpeed
 		[XmlIgnore]
 		public bool IsInitialized = false;
 
-        [ProtoMember(1)]
+        [ProtoMember(2)]
         public bool IgnoreGridsWithoutThrust { get; set; }
 
-		[ProtoMember(2)]
+        [ProtoMember(3)]
+        public float ParachuteDeployHeight { get; set; }
+
+		[ProtoMember(4)]
         public float SpeedLimit { get; set; }
 
-        [ProtoMember(3)]
+        [ProtoMember(5)]
         public float LargeGrid_MinCruise { get; set; }
 
-        [ProtoMember(4)]
+        [ProtoMember(6)]
         public float LargeGrid_MaxCruise { get; set; }
 
-        [ProtoMember(5)]
+        [ProtoMember(7)]
         public float LargeGrid_MaxMass { get; set; }
 
-        [ProtoMember(6)]
+        [ProtoMember(8)]
         public float LargeGrid_MinMass { get; set; }
 
-        [ProtoMember(7)]
+        [ProtoMember(9)]
         public float LargeGrid_MaxBoostSpeed { get; set; }
 
-        [ProtoMember(8)]
+        [ProtoMember(10)]
         public float LargeGrid_ResistanceMultiplier { get; set; }
 
-        [ProtoMember(9)]
+        [ProtoMember(11)]
         public float SmallGrid_MinCruise { get; set; }
 
-        [ProtoMember(10)]
+        [ProtoMember(12)]
         public float SmallGrid_MaxCruise { get; set; }
 
-        [ProtoMember(11)]
+        [ProtoMember(13)]
         public float SmallGrid_MaxMass { get; set; }
 
-        [ProtoMember(12)]
+        [ProtoMember(14)]
         public float SmallGrid_MinMass { get; set; }
 
-        [ProtoMember(13)]
+        [ProtoMember(15)]
         public float SmallGrid_MaxBoostSpeed { get; set; }
 
-        [ProtoMember(14)]
+        [ProtoMember(16)]
         public float SmallGrid_ResistanceMultiplyer { get; set; }
 
         [XmlIgnore]
@@ -87,6 +94,24 @@ namespace RelativeTopSpeed
 
             MyDefinitionManager.Static.EnvironmentDefinition.LargeShipMaxSpeed = SpeedLimit;
             MyDefinitionManager.Static.EnvironmentDefinition.SmallShipMaxSpeed = SpeedLimit;
+
+
+            // parachute deploy hight code is taken directly from midspaces configurable speed mod. All credit goes to them. 
+            DictionaryReader<string, MyDropContainerDefinition> dropContainers = MyDefinitionManager.Static.GetDropContainerDefinitions();
+            foreach (var kvp in dropContainers)
+            {
+                foreach (MyObjectBuilder_CubeGrid grid in kvp.Value.Prefab.CubeGrids)
+                {
+                    foreach (MyObjectBuilder_CubeBlock block in grid.CubeBlocks)
+                    {
+                        MyObjectBuilder_Parachute chute = block as MyObjectBuilder_Parachute;
+                        if (chute != null)
+                        {
+                            chute.DeployHeight = ParachuteDeployHeight;
+                        }
+                    }
+                }
+            }
         }
 
         public override string ToString()
@@ -99,6 +124,11 @@ namespace RelativeTopSpeed
             if (s.SpeedLimit <= 0)
             {
                 s.SpeedLimit = 100;
+            }
+
+            if (s.ParachuteDeployHeight < 0)
+            {
+                s.ParachuteDeployHeight = 0;
             }
 
             #region Large Grid Validation
