@@ -1,7 +1,7 @@
-﻿using ModNetworkAPI;
-using Sandbox.Definitions;
-using Sandbox.Game.Entities;
+﻿using Sandbox.Game.Entities;
 using Sandbox.ModAPI;
+using SENetworkAPI;
+using System;
 using System.Collections.Generic;
 using VRage.Game;
 using VRage.Game.Components;
@@ -49,7 +49,7 @@ namespace RelativeTopSpeed
 			Network.RegisterChatCommand("config", Chat_Config);
 			Network.RegisterChatCommand("debug", Chat_Debug);
 
-			if (Network.NetworkType == NetworkTypes.Client)
+			if (!MyAPIGateway.Multiplayer.IsServer)
 			{
 				Network.RegisterNetworkCommand(null, ClientCallback_Update);
 				Network.RegisterChatCommand("update", (args) => { Network.SendCommand("update"); });
@@ -335,7 +335,7 @@ namespace RelativeTopSpeed
 			}
 		}
 
-		private void ClientCallback_Update(ulong steamId, string CommandString, byte[] data)
+		private void ClientCallback_Update(ulong steamId, string CommandString, byte[] data, DateTime timestamp)
 		{
 			if (data != null)
 			{
@@ -345,12 +345,12 @@ namespace RelativeTopSpeed
 			}
 		}
 
-		private void ServerCallback_Update(ulong steamId, string commandString, byte[] data)
+		private void ServerCallback_Update(ulong steamId, string commandString, byte[] data, DateTime timestamp)
 		{
 			Network.SendCommand(null, data: MyAPIGateway.Utilities.SerializeToBinary(cfg), steamId: steamId);
 		}
 
-		private void ServerCallback_Load(ulong steamId, string commandString, byte[] data)
+		private void ServerCallback_Load(ulong steamId, string commandString, byte[] data, DateTime timestamp)
 		{
 			if (IsAllowedSpecialOperations(steamId))
 			{
