@@ -96,10 +96,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\ModNetworkAPI\Client.cs" />
-    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\ModNetworkAPI\Command.cs" />
-    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\ModNetworkAPI\Network.cs" />
-    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\ModNetworkAPI\Server.cs" />
+    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\Client.cs" />
+    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\Command.cs" />
+    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\NetSync.cs" />
+    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\Network.cs" />
+    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\NetworkComponent.cs" />
+    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\Server.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\RelativeTopSpeed.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\Settings.cs" />
   </ItemGroup>
