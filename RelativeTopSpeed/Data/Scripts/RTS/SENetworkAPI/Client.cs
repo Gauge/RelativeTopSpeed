@@ -53,6 +53,7 @@ namespace SENetworkAPI
 				cmd.IsCompressed = true;
 			}
 
+			cmd.Timestamp = DateTime.UtcNow.Ticks;
 			byte[] packet = MyAPIGateway.Utilities.SerializeToBinary(cmd);
 
 			if (LogNetworkTraffic)
@@ -90,6 +91,11 @@ namespace SENetworkAPI
 		internal override void SendCommand(Command cmd, Vector3D point, double radius = 0, ulong steamId = 0, bool isReliable = true)
 		{
 			SendCommand(cmd, steamId, isReliable);
+		}
+
+		public override void Say(string message) 
+		{
+			SendCommand(null, message);
 		}
 	}
 }

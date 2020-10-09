@@ -100,9 +100,9 @@
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\Command.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\NetSync.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\Network.cs" />
-    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\NetworkComponent.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\Server.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\RelativeTopSpeed.cs" />
+    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\SessionTools.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\Settings.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

@@ -12,7 +12,7 @@ namespace SENetworkAPI
 	public abstract class NetworkAPI
 	{
 		public static NetworkAPI Instance = null;
-		public static bool IsInitialized = Instance != null;
+		public static bool IsInitialized => Instance != null;
 		public static bool LogNetworkTraffic = false;
 		public const int CompressionThreshold = 100000;
 
@@ -45,9 +45,11 @@ namespace SENetworkAPI
 
 			if (UsingTextCommands)
 			{
+				MyAPIGateway.Utilities.MessageEntered -= HandleChatInput;
 				MyAPIGateway.Utilities.MessageEntered += HandleChatInput;
 			}
 
+			MyAPIGateway.Multiplayer.UnregisterMessageHandler(ComId, HandleIncomingPacket);
 			MyAPIGateway.Multiplayer.RegisterMessageHandler(ComId, HandleIncomingPacket);
 
 			MyLog.Default.Info($"[NetworkAPI] Initialized. Type: {GetType().Name} ComId: {ComId} Name: {ModName} Keyword: {Keyword}");
@@ -78,7 +80,7 @@ namespace SENetworkAPI
 			}
 			else
 			{
-				if (MyAPIGateway.Utilities.IsDedicated)
+				if (!MyAPIGateway.Utilities.IsDedicated)
 				{
 					MyAPIGateway.Utilities.ShowMessage(ModName, "Command not recognized.");
 				}
@@ -97,7 +99,8 @@ namespace SENetworkAPI
 
 				if (LogNetworkTraffic)
 				{
-					MyLog.Default.Info($"[NetworkAPI] Received{(cmd.IsCompressed ? " Compressed" : "")} Transmission: From: {cmd.SteamId} Type: {((cmd.IsProperty) ? "Property" : $"Command ID: {cmd.CommandString}")}");
+					MyLog.Default.Info($"[NetworkAPI] ----- TRANSMISSION RECIEVED -----");
+					MyLog.Default.Info($"[NetworkAPI] Type: {((cmd.IsProperty) ? "Property" : $"Command ID: {cmd.CommandString}")}, {(cmd.IsCompressed ? "Compressed, " : "")}From: {cmd.SteamId} ");
 				}
 
 				if (cmd.IsCompressed)
@@ -108,36 +111,49 @@ namespace SENetworkAPI
 
 				if (cmd.IsProperty)
 				{
-					NetSync<object>.RouteMessage(MyAPIGateway.Utilities.SerializeFromBinary<SyncData>(cmd.Data), cmd.SteamId);
+					NetSync<object>.RouteMessage(MyAPIGateway.Utilities.SerializeFromBinary<SyncData>(cmd.Data), cmd.SteamId, cmd.Timestamp);
 				}
 				else
 				{
-					if (!string.IsNullOrWhiteSpace(cmd.Message) && !MyAPIGateway.Multiplayer.IsServer && MyAPIGateway.Session != null)
+					if (!string.IsNullOrWhiteSpace(cmd.Message))
 					{
-						MyAPIGateway.Utilities.ShowMessage(ModName, cmd.Message);
+
+						if (!MyAPIGateway.Utilities.IsDedicated)
+						{
+							if (MyAPIGateway.Session != null)
+							{
+								MyAPIGateway.Utilities.ShowMessage(ModName, cmd.Message);
+							}
+						}
+
+						if (MyAPIGateway.Multiplayer.IsServer)
+						{
+							SendCommand(null, cmd.Message);
+						}
 					}
 
-					if (cmd != null)
+					if (cmd.CommandString != null)
 					{
 						OnCommandRecived?.Invoke(cmd.SteamId, cmd.CommandString, cmd.Data, new DateTime(cmd.Timestamp));
-					}
 
-					if (cmd.CommandString == null)
-					{
-						cmd.CommandString = string.Empty;
-					}
+						string command = cmd.CommandString.Split(' ')[0];
 
-					string command = cmd.CommandString.Split(' ')[0];
-
-					if (NetworkCommands.ContainsKey(command))
-					{
-						NetworkCommands[command]?.Invoke(cmd.SteamId, cmd.CommandString, cmd.Data, new DateTime(cmd.Timestamp));
+						if (NetworkCommands.ContainsKey(command))
+						{
+							NetworkCommands[command]?.Invoke(cmd.SteamId, cmd.CommandString, cmd.Data, new DateTime(cmd.Timestamp));
+						}
 					}
 				}
+
+				if (LogNetworkTraffic)
+				{
+					MyLog.Default.Info($"[NetworkAPI] ----- END -----");
+				}
+
 			}
 			catch (Exception e)
 			{
-				MyLog.Default.Error($"[NetworkAPI] Failed to unpack message:\n{e.ToString()}");
+				MyLog.Default.Error($"[NetworkAPI] Failure in message processing:\n{e.ToString()}");
 			}
 		}
 
@@ -150,7 +166,7 @@ namespace SENetworkAPI
 		{
 			if (command == null)
 			{
-				command = string.Empty;
+				throw new Exception($"[NetworkAPI] Cannot register a command using null. null is reserved for chat messages.");
 			}
 
 			command = command.ToLower();
@@ -253,8 +269,15 @@ namespace SENetworkAPI
 		internal abstract void SendCommand(Command cmd, Vector3D point, double range = 0, ulong steamId = ulong.MinValue, bool isReliable = true);
 
 		/// <summary>
+		/// Posts text into the ingame chat.
+		/// </summary>
+		/// <param name="message"></param>
+		public abstract void Say(string message);
+
+		/// <summary>
 		/// Unregisters listeners
 		/// </summary>
+		[ObsoleteAttribute("This property is obsolete. Close is no longer required", false)]
 		public void Close()
 		{
 			MyLog.Default.Info($"[NetworkAPI] Unregistering communication stream: {ComId}");
@@ -270,6 +293,7 @@ namespace SENetworkAPI
 		/// <summary>
 		/// Calls Instance.Close()
 		/// </summary>
+		[ObsoleteAttribute("This property is obsolete. Dispose is no longer required", false)]
 		public static void Dispose()
 		{
 			if (IsInitialized)
@@ -299,23 +323,24 @@ namespace SENetworkAPI
 		}
 
 		/// <summary>
-		/// Gets the diffrence between now and a given date in milliseconds
+		/// Gets the diffrence between now and a given timestamp in milliseconds
 		/// </summary>
-		/// <param name="date"></param>
 		/// <returns></returns>
-		public static double GetDeltaMilliseconds(DateTime date)
+		public static float GetDeltaMilliseconds(long timestamp)
 		{
-			return ((double)(DateTime.UtcNow.Ticks - date.Ticks)) / 10000d;
+			return (DateTime.UtcNow.Ticks - timestamp) / TimeSpan.TicksPerMillisecond;
 		}
 
 		/// <summary>
-		/// Gets the diffrence between now and a given date in frames (60 fps)
+		/// Gets the diffrence between now and a given timestamp in frames (60 fps)
 		/// </summary>
 		/// <param name="date"></param>
 		/// <returns></returns>
-		public static int GetDeltaFrames(DateTime date)
+
+		private static double frames = 1000d / 60d;
+		public static int GetDeltaFrames(long timestamp)
 		{
-			return (int)Math.Ceiling(((double)(DateTime.UtcNow.Ticks - date.Ticks)) * 60 / 10000000d);
+			return (int)Math.Ceiling(GetDeltaMilliseconds(timestamp) / frames);
 		}
 	}
 }

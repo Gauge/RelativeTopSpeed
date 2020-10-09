@@ -17,6 +17,7 @@ namespace RelativeTopSpeed
         public const string Filename = "RelativeTopSpeed.cfg";
 
         public static readonly Settings Default = new Settings() {
+            EnableBoosting = true,
             IgnoreGridsWithoutThrust = true,
             ParachuteDeployHeight = 400,
             SpeedLimit = 140,
@@ -31,11 +32,11 @@ namespace RelativeTopSpeed
 			SmallGrid_MaxBoostSpeed = 140,
 			SmallGrid_ResistanceMultiplyer = 1f,
 			SmallGrid_MinMass = 10000,
-			SmallGrid_MaxMass = 400000
+			SmallGrid_MaxMass = 400000,
 		};
 
-		[XmlIgnore]
-		public bool IsInitialized = false;
+        [ProtoMember(1)]
+        public bool EnableBoosting { get; set; }
 
         [ProtoMember(2)]
         public bool IgnoreGridsWithoutThrust { get; set; }
@@ -276,7 +277,6 @@ namespace RelativeTopSpeed
             MyDefinitionManager.Static.EnvironmentDefinition.LargeShipMaxSpeed = s.SpeedLimit;
             MyDefinitionManager.Static.EnvironmentDefinition.SmallShipMaxSpeed = s.SpeedLimit;
             s.CalculateCurve();
-			s.IsInitialized = true;
             return s;
         }
 

@@ -1,4 +1,5 @@
-﻿using Sandbox.Game.Entities;
+﻿using Sandbox.Definitions;
+using Sandbox.Game.Entities;
 using Sandbox.ModAPI;
 using SENetworkAPI;
 using System;
@@ -21,7 +22,7 @@ namespace RelativeTopSpeed
 		private const string ModName = "Relative Top Speed";
 		private const string CommandKeyword = "/rts";
 
-		public static Settings cfg;
+		public NetSync<Settings> cfg;
 
 		private bool showHud = false;
 		private bool debug = false;
@@ -38,40 +39,45 @@ namespace RelativeTopSpeed
 		{
 			thrustTypeId = MyObjectBuilderType.ParseBackwardsCompatible("Thrust");
 
+			NetworkAPI.LogNetworkTraffic = false;
+
 			if (!NetworkAPI.IsInitialized)
 			{
 				NetworkAPI.Init(ComId, ModName, CommandKeyword);
 			}
 
+			cfg = new NetSync<Settings>(this, TransferType.ServerToClient, Settings.Load(), true, false);
+			cfg.ValueChangedByNetwork += SettingsChanged;
+
 			Network.RegisterChatCommand(string.Empty, Chat_Help);
 			Network.RegisterChatCommand("help", Chat_Help);
 			Network.RegisterChatCommand("hud", Chat_Hud);
 			Network.RegisterChatCommand("config", Chat_Config);
-			Network.RegisterChatCommand("debug", Chat_Debug);
 
 			if (!MyAPIGateway.Multiplayer.IsServer)
 			{
-				Network.RegisterNetworkCommand(null, ClientCallback_Update);
-				Network.RegisterChatCommand("update", (args) => { Network.SendCommand("update"); });
 				Network.RegisterChatCommand("load", (args) => { Network.SendCommand("load"); });
 			}
 			else
 			{
-				Network.RegisterNetworkCommand("update", ServerCallback_Update);
 				Network.RegisterNetworkCommand("load", ServerCallback_Load);
-				Network.RegisterChatCommand("load", (args) => { cfg = Settings.Load(); });
+				Network.RegisterChatCommand("load", (args) => { cfg.Value = Settings.Load(); });
 			}
 
 			MyLog.Default.Info("[RelativeTopSpeed] Starting.");
 			MyAPIGateway.Entities.OnEntityAdd += AddGrid;
 			MyAPIGateway.Entities.OnEntityRemove += RemoveGrid;
+		}
 
-			cfg = Settings.Load();
+		private void SettingsChanged(Settings o, Settings n, ulong sender)
+		{
+			MyDefinitionManager.Static.EnvironmentDefinition.LargeShipMaxSpeed = n.SpeedLimit;
+			MyDefinitionManager.Static.EnvironmentDefinition.SmallShipMaxSpeed = n.SpeedLimit;
+			n.CalculateCurve();
 		}
 
 		protected override void UnloadData()
 		{
-			Network.Close();
 			MyAPIGateway.Entities.OnEntityAdd -= AddGrid;
 			MyAPIGateway.Entities.OnEntityRemove -= RemoveGrid;
 		}
@@ -116,7 +122,7 @@ namespace RelativeTopSpeed
 				ActiveGrids.Remove(grid);
 			}
 			else if (IsMoving(grid) &&
-				(cfg.IgnoreGridsWithoutThrust && grid.BlocksCounters.ContainsKey(thrustTypeId) && grid.BlocksCounters[thrustTypeId] > 0))
+				(cfg.Value.IgnoreGridsWithoutThrust && grid.BlocksCounters.ContainsKey(thrustTypeId) && grid.BlocksCounters[thrustTypeId] > 0))
 			{
 				if (!ActiveGrids.Contains(grid))
 				{
@@ -146,12 +152,6 @@ namespace RelativeTopSpeed
 				{
 					lock (PassiveGrids)
 					{
-						// continue to request server settings till received
-						if (!cfg.IsInitialized && waitInterval == 20)
-						{
-							Network.SendCommand("update");
-						}
-
 						// update active / passive grids every 3 seconds
 						if (waitInterval == 0)
 						{
@@ -160,7 +160,7 @@ namespace RelativeTopSpeed
 
 								MyCubeGrid grid = PassiveGrids[i];
 								bool isContained = grid.BlocksCounters.ContainsKey(thrustTypeId);
-								if (cfg.IgnoreGridsWithoutThrust && 
+								if (cfg.Value.IgnoreGridsWithoutThrust && 
 									(!isContained || 
 										(isContained && grid.BlocksCounters[thrustTypeId] == 0)))
 								{
@@ -184,7 +184,7 @@ namespace RelativeTopSpeed
 								MyCubeGrid grid = ActiveGrids[i];
 								bool isContained = grid.BlocksCounters.ContainsKey(thrustTypeId);
 								if (!IsMoving(grid) || 
-									cfg.IgnoreGridsWithoutThrust &&
+									cfg.Value.IgnoreGridsWithoutThrust &&
 										(!isContained ||
 											(isContained && grid.BlocksCounters[thrustTypeId] == 0)))
 								{
@@ -238,32 +238,34 @@ namespace RelativeTopSpeed
 
 			float speed = grid.Physics.Speed;
 			bool isLargeGrid = grid.GridSizeEnum == MyCubeSize.Large;
-			float minSpeed = (isLargeGrid) ? cfg.LargeGrid_MinCruise : cfg.SmallGrid_MinCruise;
-
-			//if (!MyAPIGateway.Utilities.IsDedicated && debug)
-			//{
-			//	MyAPIGateway.Utilities.ShowNotification($"Active Grid: {grid.CustomName} Speed: {speed.ToString("n2")}",1);
-			//}
+			float minSpeed = (isLargeGrid) ? cfg.Value.LargeGrid_MinCruise : cfg.Value.SmallGrid_MinCruise;
 
 			if (speed > minSpeed)
 			{
-				float resistantForce;
 				float mass = grid.Physics.Mass;
 				float cruiseSpeed = GetCruiseSpeed(mass, isLargeGrid);
 
-				if (speed >= cruiseSpeed)
+				if (cfg.Value.EnableBoosting)
 				{
-					if (isLargeGrid)
+					if (speed >= cruiseSpeed)
 					{
-						resistantForce = cfg.LargeGrid_ResistanceMultiplier * mass * (1 - (cruiseSpeed / speed));
+						float maxBoost = (isLargeGrid) ? cfg.Value.LargeGrid_MaxBoostSpeed : cfg.Value.SmallGrid_MaxBoostSpeed;
+						float resistance = (isLargeGrid) ? cfg.Value.LargeGrid_ResistanceMultiplier : cfg.Value.SmallGrid_ResistanceMultiplyer;
+
+						float resistantForce = resistance * mass * (1 - (cruiseSpeed / speed));
+
+						Vector3 velocity = grid.Physics.LinearVelocity * -resistantForce;
+						grid.Physics.AddForce(MyPhysicsForceType.APPLY_WORLD_FORCE, velocity, grid.Physics.CenterOfMassWorld, null, maxBoost);
 					}
-					else
+				}
+				else
+				{
+					if (speed > cruiseSpeed)
 					{
-						resistantForce = cfg.SmallGrid_ResistanceMultiplyer * mass * (1 - (cruiseSpeed / speed));
+						Vector3 linear = grid.Physics.LinearVelocity * (cruiseSpeed / speed);
+						grid.Physics.SetSpeeds(linear, grid.Physics.AngularVelocity);
 					}
 
-					Vector3 velocity = grid.Physics.LinearVelocity * -resistantForce;
-					grid.Physics.AddForce(MyPhysicsForceType.APPLY_WORLD_FORCE, velocity, grid.Physics.CenterOfMassWorld, null, ((isLargeGrid) ? cfg.LargeGrid_MaxBoostSpeed : cfg.SmallGrid_MaxBoostSpeed));
 				}
 			}
 		}
@@ -274,34 +276,34 @@ namespace RelativeTopSpeed
 
 			if (isLargeGrid)
 			{
-				if (mass > cfg.LargeGrid_MaxMass)
+				if (mass > cfg.Value.LargeGrid_MaxMass)
 				{
-					cruiseSpeed = cfg.LargeGrid_MinCruise;
+					cruiseSpeed = cfg.Value.LargeGrid_MinCruise;
 				}
-				else if (mass < cfg.LargeGrid_MinMass)
+				else if (mass < cfg.Value.LargeGrid_MinMass)
 				{
-					cruiseSpeed = cfg.LargeGrid_MaxCruise;
+					cruiseSpeed = cfg.Value.LargeGrid_MaxCruise;
 				}
 				else
 				{
-					float x = (mass - cfg.LargeGrid_MaxMass);
-					cruiseSpeed = (float)(cfg.l_a * x * x + cfg.LargeGrid_MinCruise);
+					float x = (mass - cfg.Value.LargeGrid_MaxMass);
+					cruiseSpeed = (float)(cfg.Value.l_a * x * x + cfg.Value.LargeGrid_MinCruise);
 				}
 			}
 			else
 			{
-				if (mass > cfg.SmallGrid_MaxMass)
+				if (mass > cfg.Value.SmallGrid_MaxMass)
 				{
-					cruiseSpeed = cfg.SmallGrid_MinCruise;
+					cruiseSpeed = cfg.Value.SmallGrid_MinCruise;
 				}
-				else if (mass < cfg.SmallGrid_MinMass)
+				else if (mass < cfg.Value.SmallGrid_MinMass)
 				{
-					cruiseSpeed = cfg.SmallGrid_MaxCruise;
+					cruiseSpeed = cfg.Value.SmallGrid_MaxCruise;
 				}
 				else
 				{
-					float x = (mass - cfg.SmallGrid_MaxMass);
-					cruiseSpeed = (float)(cfg.s_a * x * x + cfg.SmallGrid_MinCruise);
+					float x = (mass - cfg.Value.SmallGrid_MaxMass);
+					cruiseSpeed = (float)(cfg.Value.s_a * x * x + cfg.Value.SmallGrid_MinCruise);
 				}
 			}
 
@@ -321,42 +323,19 @@ namespace RelativeTopSpeed
 			MyAPIGateway.Utilities.ShowMessage(ModName, $"Hud display is {(showHud ? "ON" : "OFF")}");
 		}
 
-		private void Chat_Debug(string arguments)
-		{
-			debug = !debug;
-			MyAPIGateway.Utilities.ShowMessage(ModName, $"Debug display is {(showHud ? "ON" : "OFF")}");
-		}
-
 		private void Chat_Config(string arguments)
 		{
-			if (Network.NetworkType != NetworkTypes.Dedicated)
+			if (!MyAPIGateway.Utilities.IsDedicated)
 			{
-				MyAPIGateway.Utilities.ShowMissionScreen("Relative Top Speed", "Configuration", null, cfg.ToString());
+				MyAPIGateway.Utilities.ShowMissionScreen("Relative Top Speed", "Configuration", null, cfg.Value.ToString());
 			}
-		}
-
-		private void ClientCallback_Update(ulong steamId, string CommandString, byte[] data, DateTime timestamp)
-		{
-			if (data != null)
-			{
-				cfg = MyAPIGateway.Utilities.SerializeFromBinary<Settings>(data);
-				cfg.CalculateCurve();
-				cfg.IsInitialized = true;
-			}
-		}
-
-		private void ServerCallback_Update(ulong steamId, string commandString, byte[] data, DateTime timestamp)
-		{
-			Network.SendCommand(null, data: MyAPIGateway.Utilities.SerializeToBinary(cfg), steamId: steamId);
 		}
 
 		private void ServerCallback_Load(ulong steamId, string commandString, byte[] data, DateTime timestamp)
 		{
 			if (IsAllowedSpecialOperations(steamId))
 			{
-				cfg = Settings.Load();
-
-				Network.SendCommand(null, "Settings loaded", MyAPIGateway.Utilities.SerializeToBinary(cfg));
+				cfg.Value = Settings.Load();
 			}
 			else
 			{
