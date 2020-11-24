@@ -225,7 +225,6 @@ namespace RelativeTopSpeed
 
         public static Settings Load()
         {
-
 			if (!MyAPIGateway.Multiplayer.IsServer)
 			{
 				return Default;

@@ -249,6 +249,7 @@ namespace SENetworkAPI
 
 			SendValue(syncType);
 			ValueChanged?.Invoke(oldval, val);
+
 		}
 
 		/// <summary>
