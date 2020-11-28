@@ -14,6 +14,8 @@ namespace RelativeTopSpeed
     [ProtoContract]
     public class Settings
     {
+        public static Settings Instance;
+
         public const string Filename = "RelativeTopSpeed.cfg";
 
         public static readonly Settings Default = new Settings() {
@@ -21,6 +23,7 @@ namespace RelativeTopSpeed
             IgnoreGridsWithoutThrust = true,
             ParachuteDeployHeight = 400,
             SpeedLimit = 140,
+            RemoteControlSpeedLimit = 100,
 			LargeGrid_MinCruise = 60,
 			LargeGrid_MaxCruise = 110,
 			LargeGrid_MaxBoostSpeed = 140,
@@ -48,39 +51,42 @@ namespace RelativeTopSpeed
         public float SpeedLimit { get; set; }
 
         [ProtoMember(5)]
-        public float LargeGrid_MinCruise { get; set; }
+        public float RemoteControlSpeedLimit { get; set; }
 
         [ProtoMember(6)]
-        public float LargeGrid_MaxCruise { get; set; }
+        public float LargeGrid_MinCruise { get; set; }
 
         [ProtoMember(7)]
-        public float LargeGrid_MaxMass { get; set; }
+        public float LargeGrid_MaxCruise { get; set; }
 
         [ProtoMember(8)]
-        public float LargeGrid_MinMass { get; set; }
+        public float LargeGrid_MaxMass { get; set; }
 
         [ProtoMember(9)]
-        public float LargeGrid_MaxBoostSpeed { get; set; }
+        public float LargeGrid_MinMass { get; set; }
 
         [ProtoMember(10)]
-        public float LargeGrid_ResistanceMultiplier { get; set; }
+        public float LargeGrid_MaxBoostSpeed { get; set; }
 
         [ProtoMember(11)]
-        public float SmallGrid_MinCruise { get; set; }
+        public float LargeGrid_ResistanceMultiplier { get; set; }
 
         [ProtoMember(12)]
-        public float SmallGrid_MaxCruise { get; set; }
+        public float SmallGrid_MinCruise { get; set; }
 
         [ProtoMember(13)]
-        public float SmallGrid_MaxMass { get; set; }
+        public float SmallGrid_MaxCruise { get; set; }
 
         [ProtoMember(14)]
-        public float SmallGrid_MinMass { get; set; }
+        public float SmallGrid_MaxMass { get; set; }
 
         [ProtoMember(15)]
-        public float SmallGrid_MaxBoostSpeed { get; set; }
+        public float SmallGrid_MinMass { get; set; }
 
         [ProtoMember(16)]
+        public float SmallGrid_MaxBoostSpeed { get; set; }
+
+        [ProtoMember(17)]
         public float SmallGrid_ResistanceMultiplyer { get; set; }
 
         [XmlIgnore]
@@ -125,6 +131,15 @@ namespace RelativeTopSpeed
             if (s.SpeedLimit <= 0)
             {
                 s.SpeedLimit = 100;
+            }
+
+            if (s.RemoteControlSpeedLimit <= 0)
+            {
+                s.RemoteControlSpeedLimit = 100;
+            }
+            else if (s.RemoteControlSpeedLimit > s.SpeedLimit)
+            {
+                s.RemoteControlSpeedLimit = s.SpeedLimit;
             }
 
             if (s.ParachuteDeployHeight < 0)

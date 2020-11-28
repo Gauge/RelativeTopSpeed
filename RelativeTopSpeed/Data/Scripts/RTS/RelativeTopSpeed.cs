@@ -23,6 +23,8 @@ namespace RelativeTopSpeed
 		private const string CommandKeyword = "/rts";
 
 		public NetSync<Settings> cfg;
+		public static event Action<Settings> SettingsChanged;
+
 
 		private bool showHud = false;
 		private bool debug = false;
@@ -47,7 +49,8 @@ namespace RelativeTopSpeed
 			}
 
 			cfg = new NetSync<Settings>(this, TransferType.ServerToClient, Settings.Load(), true, false);
-			cfg.ValueChangedByNetwork += SettingsChanged;
+			cfg.ValueChangedByNetwork += SettingChanged;
+			Settings.Instance = cfg.Value;
 
 			Network.RegisterChatCommand(string.Empty, Chat_Help);
 			Network.RegisterChatCommand("help", Chat_Help);
@@ -69,11 +72,13 @@ namespace RelativeTopSpeed
 			MyAPIGateway.Entities.OnEntityRemove += RemoveGrid;
 		}
 
-		private void SettingsChanged(Settings o, Settings n, ulong sender)
+		private void SettingChanged(Settings o, Settings n, ulong sender)
 		{
 			MyDefinitionManager.Static.EnvironmentDefinition.LargeShipMaxSpeed = n.SpeedLimit;
 			MyDefinitionManager.Static.EnvironmentDefinition.SmallShipMaxSpeed = n.SpeedLimit;
 			n.CalculateCurve();
+			Settings.Instance = n;
+			SettingsChanged.Invoke(n);
 		}
 
 		protected override void UnloadData()
