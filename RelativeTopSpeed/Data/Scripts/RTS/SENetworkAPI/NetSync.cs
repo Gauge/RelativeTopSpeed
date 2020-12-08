@@ -212,23 +212,24 @@ namespace SENetworkAPI
 				}
 			}
 
-			// sync
 			if (SyncOnLoad)
 			{
-				if (!SessionTools.Ready)
-				{
-					SessionTools.WhenReady += PropertyLoaded;
-				}
-				else
-				{
-					Fetch();
-				}
+				Entity.AddedToScene += SyncOnAddedToScene;
 			}
 
 			if (NetworkAPI.LogNetworkTraffic)
 			{
 				MyLog.Default.Info($"[NetworkAPI] Property Created: {Descriptor()}, Transfer: {transferType}, SyncOnLoad: {SyncOnLoad}");
 			}
+		}
+
+		private void SyncOnAddedToScene(MyEntity e) 
+		{
+			if (Entity != e)
+				return;
+
+			Fetch();			
+			Entity.AddedToScene -= SyncOnAddedToScene;
 		}
 
 		private void Entity_OnClose(MyEntity entity)
@@ -410,6 +411,12 @@ namespace SENetworkAPI
 			{
 				MyEntity entity = (MyEntity)MyAPIGateway.Entities.GetEntityById(pack.EntityId);
 
+				if (entity == null)
+				{
+					MyLog.Default.Info($"[NetworkAPI] Failed to get entity by id");
+					return;
+				}
+
 				if (!PropertiesByEntity.ContainsKey(entity))
 				{
 					MyLog.Default.Info($"[NetworkAPI] Entity not registered in dictionary 'PropertiesByEntity'");
@@ -473,12 +480,6 @@ namespace SENetworkAPI
 		internal override void Push(SyncType type, ulong sendTo = ulong.MinValue)
 		{
 			SendValue(type, sendTo);
-		}
-
-		private void PropertyLoaded()
-		{
-			Fetch();
-			SessionTools.WhenReady -= PropertyLoaded;
 		}
 
 		/// <summary>
