@@ -31,9 +31,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="ProtoBuf.Net.Core">
-      <HintPath>E:\Games\SteamGames\steamapps\common\SpaceEngineers\Bin64\ProtoBuf.Net.Core.dll</HintPath>
-    </Reference>
     <Reference Include="Sandbox.Common">
       <HintPath>E:\Games\SteamGames\steamapps\common\SpaceEngineers\Bin64\Sandbox.Common.dll</HintPath>
     </Reference>
@@ -105,6 +102,31 @@
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\RelativeTopSpeed.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\SessionTools.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\Settings.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\SpaceEngineers.ObjectBuilders.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\SpaceEngineers.ObjectBuilders.XmlSerializers.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Ansel.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Audio.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.EOS.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.EOS.XmlSerializers.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Game.XmlSerializers.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Input.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Library.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Math.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Math.XmlSerializers.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Mod.Io.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Native.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.NativeAftermath.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.NativeWrapper.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Platform.Windows.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Render.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Render11.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Scripting.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.Steam.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.UserInterface.dll" />
+    <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.XmlSerializers.dll" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

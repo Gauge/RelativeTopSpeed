@@ -78,7 +78,7 @@ namespace RelativeTopSpeed
 			MyDefinitionManager.Static.EnvironmentDefinition.SmallShipMaxSpeed = n.SpeedLimit;
 			n.CalculateCurve();
 			Settings.Instance = n;
-			SettingsChanged.Invoke(n);
+			SettingsChanged?.Invoke(n);
 		}
 
 		protected override void UnloadData()
