@@ -15,10 +15,6 @@ namespace RelativeTopSpeed
 	[MyEntityComponentDescriptor(typeof(MyObjectBuilder_RemoteControl), false)]
 	public class RemoteControl : MyGameLogicComponent
 	{
-
-		
-
-		private static bool AreControlsInitialized;
         private IMyTerminalControlSlider SliderControl;
 
         public override void Init(MyObjectBuilder_EntityBase objectBuilder)
