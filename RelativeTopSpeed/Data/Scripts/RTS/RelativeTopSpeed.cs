@@ -34,12 +34,14 @@ namespace RelativeTopSpeed
 		private List<MyCubeGrid> DisabledGrids = new List<MyCubeGrid>();
 
 		private MyObjectBuilderType thrustTypeId = null;
+		private MyObjectBuilderType cockpitTypeId = null;
 
 		private NetworkAPI Network => NetworkAPI.Instance;
 
 		public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
 		{
 			thrustTypeId = MyObjectBuilderType.ParseBackwardsCompatible("Thrust");
+			cockpitTypeId = MyObjectBuilderType.ParseBackwardsCompatible("Cockpit");
 
 			NetworkAPI.LogNetworkTraffic = false;
 
@@ -127,7 +129,8 @@ namespace RelativeTopSpeed
 				ActiveGrids.Remove(grid);
 			}
 			else if (IsMoving(grid) &&
-				(cfg.Value.IgnoreGridsWithoutThrust && grid.BlocksCounters.ContainsKey(thrustTypeId) && grid.BlocksCounters[thrustTypeId] > 0))
+				!(cfg.Value.IgnoreGridsWithoutThrust && grid.BlocksCounters.ContainsKey(thrustTypeId) && grid.BlocksCounters[thrustTypeId] == 0) &&
+				!(cfg.Value.IgnoreGridsWithoutCockpit && grid.BlocksCounters.ContainsKey(cockpitTypeId) && grid.BlocksCounters[cockpitTypeId] == 0))
 			{
 				if (!ActiveGrids.Contains(grid))
 				{
@@ -164,10 +167,11 @@ namespace RelativeTopSpeed
 							{
 
 								MyCubeGrid grid = PassiveGrids[i];
-								bool isContained = grid.BlocksCounters.ContainsKey(thrustTypeId);
-								if (cfg.Value.IgnoreGridsWithoutThrust && 
-									(!isContained || 
-										(isContained && grid.BlocksCounters[thrustTypeId] == 0)))
+								bool isThrustContained = grid.BlocksCounters.ContainsKey(thrustTypeId);
+								bool isCockpitContained = grid.BlocksCounters.ContainsKey(cockpitTypeId);
+								if (
+									(cfg.Value.IgnoreGridsWithoutThrust && (!isThrustContained || grid.BlocksCounters[thrustTypeId] == 0)) ||
+									(cfg.Value.IgnoreGridsWithoutCockpit && (!isCockpitContained || grid.BlocksCounters[cockpitTypeId] == 0)))
 								{
 									continue;
 								}
@@ -270,7 +274,6 @@ namespace RelativeTopSpeed
 						Vector3 linear = grid.Physics.LinearVelocity * (cruiseSpeed / speed);
 						grid.Physics.SetSpeeds(linear, grid.Physics.AngularVelocity);
 					}
-
 				}
 			}
 		}

@@ -21,6 +21,7 @@ namespace RelativeTopSpeed
         public static readonly Settings Default = new Settings() {
             EnableBoosting = true,
             IgnoreGridsWithoutThrust = true,
+            IgnoreGridsWithoutCockpit = false,
             ParachuteDeployHeight = 400,
             SpeedLimit = 140,
             RemoteControlSpeedLimit = 100,
@@ -45,48 +46,51 @@ namespace RelativeTopSpeed
         public bool IgnoreGridsWithoutThrust { get; set; }
 
         [ProtoMember(3)]
+        public bool IgnoreGridsWithoutCockpit { get; set; }
+
+        [ProtoMember(4)]
         public float ParachuteDeployHeight { get; set; }
 
-		[ProtoMember(4)]
+		[ProtoMember(5)]
         public float SpeedLimit { get; set; }
 
-        [ProtoMember(5)]
+        [ProtoMember(6)]
         public float RemoteControlSpeedLimit { get; set; }
 
-        [ProtoMember(6)]
+        [ProtoMember(7)]
         public float LargeGrid_MinCruise { get; set; }
 
-        [ProtoMember(7)]
+        [ProtoMember(8)]
         public float LargeGrid_MaxCruise { get; set; }
 
-        [ProtoMember(8)]
+        [ProtoMember(9)]
         public float LargeGrid_MaxMass { get; set; }
 
-        [ProtoMember(9)]
+        [ProtoMember(10)]
         public float LargeGrid_MinMass { get; set; }
 
-        [ProtoMember(10)]
+        [ProtoMember(11)]
         public float LargeGrid_MaxBoostSpeed { get; set; }
 
-        [ProtoMember(11)]
+        [ProtoMember(12)]
         public float LargeGrid_ResistanceMultiplier { get; set; }
 
-        [ProtoMember(12)]
+        [ProtoMember(13)]
         public float SmallGrid_MinCruise { get; set; }
 
-        [ProtoMember(13)]
+        [ProtoMember(14)]
         public float SmallGrid_MaxCruise { get; set; }
 
-        [ProtoMember(14)]
+        [ProtoMember(15)]
         public float SmallGrid_MaxMass { get; set; }
 
-        [ProtoMember(15)]
+        [ProtoMember(16)]
         public float SmallGrid_MinMass { get; set; }
 
-        [ProtoMember(16)]
+        [ProtoMember(17)]
         public float SmallGrid_MaxBoostSpeed { get; set; }
 
-        [ProtoMember(17)]
+        [ProtoMember(18)]
         public float SmallGrid_ResistanceMultiplyer { get; set; }
 
         [XmlIgnore]
