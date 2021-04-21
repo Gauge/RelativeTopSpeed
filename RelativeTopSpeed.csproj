@@ -93,6 +93,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\RtsApiTest.cs" />
+    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\RtsApi.cs" />
+    <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\RtsApiBackend.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\RemoteControl.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\Client.cs" />
     <Compile Include="RelativeTopSpeed\Data\Scripts\RTS\SENetworkAPI\Command.cs" />
@@ -128,5 +131,6 @@
     <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.UserInterface.dll" />
     <Analyzer Include="..\..\..\Steam\steamapps\common\SpaceEngineers\Bin64\VRage.XmlSerializers.dll" />
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

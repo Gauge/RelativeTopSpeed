@@ -11,6 +11,7 @@ using VRage.ModAPI;
 using VRage.ObjectBuilders;
 using VRage.Utils;
 using VRageMath;
+using static VRageMath.Base6Directions;
 using IMyControllableEntity = VRage.Game.ModAPI.Interfaces.IMyControllableEntity;
 
 namespace RelativeTopSpeed
@@ -50,6 +51,11 @@ namespace RelativeTopSpeed
 				NetworkAPI.Init(ComId, ModName, CommandKeyword);
 			}
 
+			if (!RtsApiBackend.IsInitialized)
+			{
+				RtsApiBackend.Init(this);
+			}
+
 			cfg = new NetSync<Settings>(this, TransferType.ServerToClient, Settings.Load(), true, false);
 			cfg.ValueChangedByNetwork += SettingChanged;
 			Settings.Instance = cfg.Value;
@@ -87,6 +93,8 @@ namespace RelativeTopSpeed
 		{
 			MyAPIGateway.Entities.OnEntityAdd -= AddGrid;
 			MyAPIGateway.Entities.OnEntityRemove -= RemoveGrid;
+
+			RtsApiBackend.Close();
 		}
 
 		private void AddGrid(IMyEntity ent)
@@ -165,13 +173,9 @@ namespace RelativeTopSpeed
 						{
 							for (int i = 0; i < PassiveGrids.Count; i++)
 							{
-
 								MyCubeGrid grid = PassiveGrids[i];
-								bool isThrustContained = grid.BlocksCounters.ContainsKey(thrustTypeId);
-								bool isCockpitContained = grid.BlocksCounters.ContainsKey(cockpitTypeId);
-								if (
-									(cfg.Value.IgnoreGridsWithoutThrust && (!isThrustContained || grid.BlocksCounters[thrustTypeId] == 0)) ||
-									(cfg.Value.IgnoreGridsWithoutCockpit && (!isCockpitContained || grid.BlocksCounters[cockpitTypeId] == 0)))
+								if ((cfg.Value.IgnoreGridsWithoutThrust && (!grid.BlocksCounters.ContainsKey(thrustTypeId) || grid.BlocksCounters[thrustTypeId] == 0)) ||
+									(cfg.Value.IgnoreGridsWithoutCockpit && (!grid.BlocksCounters.ContainsKey(cockpitTypeId) || grid.BlocksCounters[cockpitTypeId] == 0)))
 								{
 									continue;
 								}
@@ -191,11 +195,9 @@ namespace RelativeTopSpeed
 							for (int i = 0; i < ActiveGrids.Count; i++)
 							{
 								MyCubeGrid grid = ActiveGrids[i];
-								bool isContained = grid.BlocksCounters.ContainsKey(thrustTypeId);
-								if (!IsMoving(grid) || 
-									cfg.Value.IgnoreGridsWithoutThrust &&
-										(!isContained ||
-											(isContained && grid.BlocksCounters[thrustTypeId] == 0)))
+								if (!IsMoving(grid) ||
+									(cfg.Value.IgnoreGridsWithoutThrust && (!grid.BlocksCounters.ContainsKey(thrustTypeId) || grid.BlocksCounters[thrustTypeId] == 0)) ||
+									(cfg.Value.IgnoreGridsWithoutCockpit && (!grid.BlocksCounters.ContainsKey(cockpitTypeId) || grid.BlocksCounters[cockpitTypeId] == 0)))
 								{
 									if (!PassiveGrids.Contains(grid))
 									{
@@ -224,7 +226,10 @@ namespace RelativeTopSpeed
 									float speed = grid.Physics.Speed;
 									float cruiseSpeed = GetCruiseSpeed(mass, grid.GridSizeEnum == MyCubeSize.Large);
 
-									MyAPIGateway.Utilities.ShowNotification($"Mass: {mass}  Cruise: {cruiseSpeed.ToString("n3")} Boost: {((speed - cruiseSpeed >= 0) ? (speed - cruiseSpeed).ToString("n3") : "0.000")}", 1);
+									float boost = GetBoost(grid)[3];
+									float resistance = (grid.GridSizeEnum == MyCubeSize.Large) ? cfg.Value.LargeGrid_ResistanceMultiplier : cfg.Value.SmallGrid_ResistanceMultiplyer;
+
+									MyAPIGateway.Utilities.ShowNotification($"Mass: {mass.ToString("n0")}   Cruise: {cruiseSpeed.ToString("n2")}   Max Boost: {(boost).ToString("n2")}", 1);
 								}
 							}
 
@@ -278,7 +283,116 @@ namespace RelativeTopSpeed
 			}
 		}
 
-		private float GetCruiseSpeed(float mass, bool isLargeGrid)
+		public float[] GetAcceleration(IMyCubeGrid grid)
+		{
+			float[] accels = GetAccelerationsByDirection(grid);
+
+			float min = float.MaxValue;
+			float average = 0;
+			float max = 0;
+
+			for (int i = 0; i < 6; i++)
+			{
+				average += accels[i];
+
+				if (accels[i] < min)
+				{
+					min = accels[i];
+				}
+			}
+
+			average /= 6;
+
+			if (accels[0] > accels[1])
+			{
+				max += accels[0];
+			}
+			else
+			{
+				max += accels[1];
+			}
+
+			if (accels[2] > accels[3])
+			{
+				max += accels[2];
+			}
+			else
+			{
+				max += accels[3];
+			}
+
+			if (accels[4] > accels[5])
+			{
+				max += accels[4];
+			}
+			else
+			{
+				max += accels[5];
+			}
+
+			return new float[] { accels[1], min, average, max };
+
+		}
+
+		public float[] GetBoost(IMyCubeGrid grid) 
+		{
+			float[] accels = GetAcceleration(grid);
+			float resistance = (grid.GridSizeEnum == MyCubeSize.Large) ? cfg.Value.LargeGrid_ResistanceMultiplier : cfg.Value.SmallGrid_ResistanceMultiplyer;
+
+			accels[0] /= resistance;
+			accels[1] /= resistance;
+			accels[2] /= resistance;
+			accels[3] /= resistance;
+
+			return accels;
+		}
+
+		public float[] GetAccelerationsByDirection(IMyCubeGrid grid)
+		{
+			if (grid == null || grid.Physics == null)
+				return new float[6];
+
+			float mass = grid.Physics.Mass;
+
+			float[] accelerations = new float[6];
+
+			foreach (IMySlimBlock slim in (grid as MyCubeGrid).CubeBlocks)
+			{
+				if (!(slim.FatBlock is IMyThrust))
+					continue;
+				
+				IMyThrust thruster = slim.FatBlock as IMyThrust;
+
+				Direction direction = GetDirection(thruster.GridThrustDirection);
+
+				accelerations[(int)direction] += thruster.MaxThrust;
+			}
+
+			// convert from force to accleration (m = f/a)
+			for (int i = 0; i < 6; i++)
+			{
+				accelerations[i] /= mass;
+			}
+
+			return accelerations;
+		}
+
+		public float GetCruiseSpeed(IMyCubeGrid grid) 
+		{
+			if (grid != null && grid.Physics != null)
+			{
+				return GetCruiseSpeed(grid.Physics.Mass, grid.GridSizeEnum == MyCubeSize.Large);
+			}
+
+			return 0;
+		}
+
+		public float GetMaxSpeed(IMyCubeGrid grid) 
+		{
+			return GetCruiseSpeed(grid) + GetBoost(grid)[3];
+		}
+
+		public float GetCruiseSpeed(float mass, bool isLargeGrid)
 		{
 			float cruiseSpeed;
 
@@ -294,8 +408,7 @@ namespace RelativeTopSpeed
 				}
 				else
 				{
-					float x = (mass - cfg.Value.LargeGrid_MaxMass);
-					cruiseSpeed = (float)(cfg.Value.l_a * x * x + cfg.Value.LargeGrid_MinCruise);
+					cruiseSpeed = (float)(cfg.Value.l_a * (mass * mass) + cfg.Value.l_b * mass + cfg.Value.l_c);
 				}
 			}
 			else
@@ -310,8 +423,7 @@ namespace RelativeTopSpeed
 				}
 				else
 				{
-					float x = (mass - cfg.Value.SmallGrid_MaxMass);
-					cruiseSpeed = (float)(cfg.Value.s_a * x * x + cfg.Value.SmallGrid_MinCruise);
+					cruiseSpeed = (float)(cfg.Value.s_a * (mass * mass) + cfg.Value.s_b * mass + cfg.Value.s_c);
 				}
 			}
 
