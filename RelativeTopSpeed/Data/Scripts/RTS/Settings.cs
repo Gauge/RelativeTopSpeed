@@ -8,7 +8,6 @@ using System.Xml.Serialization;
 using VRage.Collections;
 using VRage.Game;
 using VRage.Utils;
-using VRageMath;
 
 namespace RelativeTopSpeed
 {
@@ -16,6 +15,7 @@ namespace RelativeTopSpeed
     public class Settings
     {
         public static Settings Instance;
+        public static bool Debug = false;
 
         public const string Filename = "RelativeTopSpeed.cfg";
 
@@ -68,102 +68,148 @@ namespace RelativeTopSpeed
         [ProtoMember(8)]
         public float LargeGrid_MidCruise { get; set; }
 
-        [ProtoMember(8)]
+        [ProtoMember(9)]
         public float LargeGrid_MaxCruise { get; set; }
 
-        [ProtoMember(9)]
+        [ProtoMember(10)]
         public float LargeGrid_MinMass { get; set; }
 
-        [ProtoMember(10)]
+        [ProtoMember(11)]
         public float LargeGrid_MidMass { get; set; }
 
-        [ProtoMember(11)]
+        [ProtoMember(12)]
         public float LargeGrid_MaxMass { get; set; }
 
-        [ProtoMember(12)]
+        [ProtoMember(13)]
         public float LargeGrid_MaxBoostSpeed { get; set; }
 
-        [ProtoMember(13)]
+        [ProtoMember(14)]
         public float LargeGrid_ResistanceMultiplier { get; set; }
 
-        [ProtoMember(14)]
+        [ProtoMember(15)]
         public float SmallGrid_MinCruise { get; set; }
 
-        [ProtoMember(14)]
+        [ProtoMember(16)]
         public float SmallGrid_MidCruise { get; set; }
 
-        [ProtoMember(15)]
+        [ProtoMember(17)]
         public float SmallGrid_MaxCruise { get; set; }
 
-        [ProtoMember(16)]
+        [ProtoMember(18)]
         public float SmallGrid_MinMass { get; set; }
 
-        [ProtoMember(17)]
+        [ProtoMember(19)]
         public float SmallGrid_MidMass { get; set; }
 
-        [ProtoMember(18)]
+        [ProtoMember(20)]
         public float SmallGrid_MaxMass { get; set; }
 
-        [ProtoMember(19)]
+        [ProtoMember(21)]
         public float SmallGrid_MaxBoostSpeed { get; set; }
 
-        [ProtoMember(20)]
+        [ProtoMember(22)]
         public float SmallGrid_ResistanceMultiplyer { get; set; }
 
-        [XmlIgnore]
-        public double l_a;
-        [XmlIgnore]
-        public double l_b;
-        [XmlIgnore]
-        public double l_c;
+        // flipped the min and max cruise
+        public float GetCruiseSpeed(float mass, float minMass, float midMass, float maxMass, float maxCruise, float midCruise, float minCruise) 
+        {
+            if (mass > maxMass)
+            {
+                return maxCruise;
+            }
 
-        [XmlIgnore]
-        public double s_a;
-        [XmlIgnore]
-        public double s_b;
-        [XmlIgnore]
-        public double s_c;
+            if (mass < minMass)
+            {
+                return minCruise;
+            }
+
+            bool lessThanMid = (mass < midMass);
+
+            double speed0;
+            double speed1;
+            double deltaX;
+            double deltaY;
+            double x;
+            double slopeRatio = 1;
+
+            if (lessThanMid)
+            {
+                speed0 = minCruise;
+                speed1 = midCruise;
+                deltaX = midMass - minMass;
+                deltaY = midCruise - minCruise;
+                x = (mass - minMass) / deltaX;
+            }
+            else
+            {
+                speed0 = midCruise;
+                speed1 = maxCruise;
+                deltaX = maxMass - midMass;
+                deltaY = maxCruise - midCruise;
+                x = (mass - midMass) / deltaX;
+                slopeRatio = deltaX / (midMass - minMass);
+            }
+
+            double slope0 = deltaY * slopeRatio;
+            double slope1 = slope0;
+
+            double specialSlope = (maxCruise - minCruise) * slopeRatio;
+
+            if (lessThanMid)
+            {
+                slope1 = specialSlope;
+            }
+            else
+            {
+                slope0 = specialSlope;
+            }
+
+            float interp = (float)CubicInterpolation(x, speed0, slope0, speed1, slope1);
+
+            // dont flip the signs THEY ARE CORRECT
+			if (interp > minCruise)
+			{
+				interp = minCruise;
+			}
+			if (interp < maxCruise)
+			{
+				interp = maxCruise;
+			}
+
+			return interp; //minCruise + (maxCruise - interp);
+        }
+
+        public float GetCruiseSpeed(float mass, bool isLargeGrid)
+        {
+            if (isLargeGrid)
+            {
+                return GetCruiseSpeed(mass, LargeGrid_MinMass, LargeGrid_MidMass, LargeGrid_MaxMass, LargeGrid_MinCruise, LargeGrid_MidCruise, LargeGrid_MaxCruise);
+            }
+
+            return GetCruiseSpeed(mass, SmallGrid_MinMass, SmallGrid_MidMass, SmallGrid_MaxMass, SmallGrid_MinCruise, SmallGrid_MidCruise, SmallGrid_MaxCruise);
+        }
+
+        public static double CubicInterpolation(double x, double y0, double m0, double y1, double m1)
+        {
+            /*
+             * This implements a cubic hermite spline interpolator
+             * It interpolates between two points and the first derivatives at those two points
+             * 
+             * x must be in the domain [0,1]
+             * m0 and m1 are first derivatives at points (0, y0) and (1, y1)
+             * 
+             * Returns the interpolated y value (speed) between y0 and y1 given x
+             */
+            double x2 = x * x;
+            double x3 = x * x * x;
+            return (2 * x3 - 3 * x2 + 1) * y0 +
+                    (x3 - 2 * x2 + x) * m0 +
+                    (-2 * x3 + 3 * x2) * y1 +
+                    (x3 - x2) * m1;
+        }
 
         public void CalculateCurve()
         {
-
-            MatrixD m_la = new MatrixD(
-                LargeGrid_MinMass * LargeGrid_MinMass, LargeGrid_MinMass, 1,
-                LargeGrid_MidMass * LargeGrid_MidMass, LargeGrid_MidMass, 1,
-                LargeGrid_MaxMass * LargeGrid_MaxMass, LargeGrid_MaxMass, 1);
-            m_la = MatrixD.Invert(m_la);
-
-            l_a = m_la.M11 * LargeGrid_MaxCruise + 
-                  m_la.M12 * LargeGrid_MidCruise + 
-                  m_la.M13 * LargeGrid_MinCruise;
-
-            l_b = m_la.M21 * LargeGrid_MaxCruise +
-                  m_la.M22 * LargeGrid_MidCruise +
-                  m_la.M23 * LargeGrid_MinCruise;
-            
-            l_c = m_la.M31 * LargeGrid_MaxCruise +
-                  m_la.M32 * LargeGrid_MidCruise +
-                  m_la.M33 * LargeGrid_MinCruise;
-
-
-            MatrixD m_sa = new MatrixD(
-                SmallGrid_MinMass * SmallGrid_MinMass, SmallGrid_MinMass, 1,
-                SmallGrid_MidMass * SmallGrid_MidMass, SmallGrid_MidMass, 1,
-                SmallGrid_MaxMass * SmallGrid_MaxMass, SmallGrid_MaxMass, 1);
-            m_sa = MatrixD.Invert(m_sa);
-
-            s_a = m_sa.M11 * SmallGrid_MaxCruise +
-                  m_sa.M12 * SmallGrid_MidCruise +
-                  m_sa.M13 * SmallGrid_MinCruise;
-
-            s_b = m_sa.M21 * SmallGrid_MaxCruise +
-                  m_sa.M22 * SmallGrid_MidCruise +
-                  m_sa.M23 * SmallGrid_MinCruise;
-
-            s_c = m_sa.M31 * SmallGrid_MaxCruise +
-                  m_sa.M32 * SmallGrid_MidCruise +
-                  m_sa.M33 * SmallGrid_MinCruise;
-
             MyDefinitionManager.Static.EnvironmentDefinition.LargeShipMaxSpeed = SpeedLimit;
             MyDefinitionManager.Static.EnvironmentDefinition.SmallShipMaxSpeed = SpeedLimit;
 

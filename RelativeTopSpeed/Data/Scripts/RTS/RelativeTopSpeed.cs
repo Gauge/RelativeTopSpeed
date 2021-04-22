@@ -28,7 +28,7 @@ namespace RelativeTopSpeed
 
 
 		private bool showHud = false;
-		private bool debug = false;
+		
 		private byte waitInterval = 0;
 		private List<MyCubeGrid> ActiveGrids = new List<MyCubeGrid>();
 		private List<MyCubeGrid> PassiveGrids = new List<MyCubeGrid>();
@@ -233,7 +233,7 @@ namespace RelativeTopSpeed
 								}
 							}
 
-							if (debug && IsAllowedSpecialOperations(MyAPIGateway.Session.LocalHumanPlayer.SteamUserId))
+							if (Settings.Debug && IsAllowedSpecialOperations(MyAPIGateway.Session.LocalHumanPlayer.SteamUserId))
 							{
 								MyAPIGateway.Utilities.ShowNotification($"Grids - Active: {ActiveGrids.Count}  Passive: {PassiveGrids.Count}  Disabled: {DisabledGrids.Count}", 1);
 							}
@@ -392,49 +392,13 @@ namespace RelativeTopSpeed
 			return GetCruiseSpeed(grid) + GetBoost(grid)[3];
 		}
 
-		public float GetCruiseSpeed(float mass, bool isLargeGrid)
-		{
-			float cruiseSpeed;
-
-			if (isLargeGrid)
-			{
-				if (mass > cfg.Value.LargeGrid_MaxMass)
-				{
-					cruiseSpeed = cfg.Value.LargeGrid_MinCruise;
-				}
-				else if (mass < cfg.Value.LargeGrid_MinMass)
-				{
-					cruiseSpeed = cfg.Value.LargeGrid_MaxCruise;
-				}
-				else
-				{
-					cruiseSpeed = (float)(cfg.Value.l_a * (mass * mass) + cfg.Value.l_b * mass + cfg.Value.l_c);
-				}
-			}
-			else
-			{
-				if (mass > cfg.Value.SmallGrid_MaxMass)
-				{
-					cruiseSpeed = cfg.Value.SmallGrid_MinCruise;
-				}
-				else if (mass < cfg.Value.SmallGrid_MinMass)
-				{
-					cruiseSpeed = cfg.Value.SmallGrid_MaxCruise;
-				}
-				else
-				{
-					cruiseSpeed = (float)(cfg.Value.s_a * (mass * mass) + cfg.Value.s_b * mass + cfg.Value.s_c);
-				}
-			}
-
-			return cruiseSpeed;
-		}
+		public float GetCruiseSpeed(float mass, bool isLargeGrid) => cfg.Value.GetCruiseSpeed(mass, isLargeGrid);
 
 		#region Communications
 
 		private void Chat_Help(string arguments)
 		{
-			MyAPIGateway.Utilities.ShowMessage(Network.ModName, "Relative Top Speed\nHUD: displays ship stats when in cockpit\nCONFIG: Displays the current config\nLOAD: load world configuration\nUPDATE: requests current server settings");
+			MyAPIGateway.Utilities.ShowMessage(Network.ModName, "Relative Top Speed\nHUD: displays ship stats when in cockpit\nCONFIG: Displays the current config\nLOAD: load world configuration");
 		}
 
 		private void Chat_Hud(string arguments)
