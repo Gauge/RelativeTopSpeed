@@ -153,7 +153,7 @@ namespace RelativeTopSpeed
             double slope0 = deltaY * slopeRatio;
             double slope1 = slope0;
 
-            double specialSlope = (maxCruise - minCruise) * slopeRatio;
+            double specialSlope = (maxCruise - minCruise) * slopeRatio * 0.2f;
 
             if (lessThanMid)
             {

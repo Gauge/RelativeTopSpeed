@@ -389,7 +389,19 @@ namespace RelativeTopSpeed
 
 		public float GetMaxSpeed(IMyCubeGrid grid) 
 		{
-			return GetCruiseSpeed(grid) + GetBoost(grid)[3];
+			float speed = GetCruiseSpeed(grid);
+
+			if (cfg.Value.EnableBoosting)
+			{ 
+				speed += GetBoost(grid)[3];
+			}
+
+			if (speed > cfg.Value.SpeedLimit)
+			{
+				speed = cfg.Value.SpeedLimit;
+			}
+
+			return speed;
 		}
 
 		public float GetCruiseSpeed(float mass, bool isLargeGrid) => cfg.Value.GetCruiseSpeed(mass, isLargeGrid);
