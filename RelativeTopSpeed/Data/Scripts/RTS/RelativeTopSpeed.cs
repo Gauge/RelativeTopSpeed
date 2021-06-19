@@ -16,7 +16,7 @@ using IMyControllableEntity = VRage.Game.ModAPI.Interfaces.IMyControllableEntity
 
 namespace RelativeTopSpeed
 {
-	[MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation)]
+	[MySessionComponentDescriptor(MyUpdateOrder.Simulation, 999)]
 	public class RelativeTopSpeed : MySessionComponentBase
 	{
 		private const ushort ComId = 16341;
@@ -124,6 +124,37 @@ namespace RelativeTopSpeed
 			return ent.Physics.LinearVelocity.LengthSquared() > 1 || ent.Physics.LinearAcceleration.LengthSquared() > 1;
 		}
 
+		private bool HasActivationBlock(MyCubeGrid grid)
+		{
+			bool subHasThrust = false;
+			bool subHasCockpit = false;
+			bool subHasActivationBlocks = false;
+
+			List<IMyCubeGrid> subs = MyAPIGateway.GridGroups.GetGroup(grid, GridLinkTypeEnum.Mechanical);
+			foreach (MyCubeGrid sub in subs)
+			{
+				if (sub.BlocksCounters.ContainsKey(thrustTypeId) && sub.BlocksCounters[thrustTypeId] > 0)
+				{
+					subHasThrust = true;
+				}
+
+				if (sub.BlocksCounters.ContainsKey(cockpitTypeId) && sub.BlocksCounters[cockpitTypeId] > 0)
+				{
+					subHasCockpit = true;
+				}
+
+				if (cfg.Value.IgnoreGridsWithoutThrust && !subHasThrust ||
+					cfg.Value.IgnoreGridsWithoutCockpit && !subHasCockpit)
+				{
+					continue;
+				}
+
+				subHasActivationBlocks = true;
+			}
+
+			return subHasActivationBlocks;
+		}
+
 		private void RegisterOrUpdateGridStatus(MyCubeGrid grid, bool isStatic)
 		{
 			if (isStatic)
@@ -160,7 +191,7 @@ namespace RelativeTopSpeed
 			}
 		}
 
-		public override void UpdateBeforeSimulation()
+		public override void Simulate()
 		{
 			lock (ActiveGrids)
 			{
@@ -174,12 +205,12 @@ namespace RelativeTopSpeed
 							for (int i = 0; i < PassiveGrids.Count; i++)
 							{
 								MyCubeGrid grid = PassiveGrids[i];
-								if ((cfg.Value.IgnoreGridsWithoutThrust && (!grid.BlocksCounters.ContainsKey(thrustTypeId) || grid.BlocksCounters[thrustTypeId] == 0)) ||
-									(cfg.Value.IgnoreGridsWithoutCockpit && (!grid.BlocksCounters.ContainsKey(cockpitTypeId) || grid.BlocksCounters[cockpitTypeId] == 0)))
+
+								if (!HasActivationBlock(grid))
 								{
 									continue;
 								}
-								
+
 								if (IsMoving(grid))
 								{
 									if (!ActiveGrids.Contains(grid))
@@ -195,9 +226,7 @@ namespace RelativeTopSpeed
 							for (int i = 0; i < ActiveGrids.Count; i++)
 							{
 								MyCubeGrid grid = ActiveGrids[i];
-								if (!IsMoving(grid) ||
-									(cfg.Value.IgnoreGridsWithoutThrust && (!grid.BlocksCounters.ContainsKey(thrustTypeId) || grid.BlocksCounters[thrustTypeId] == 0)) ||
-									(cfg.Value.IgnoreGridsWithoutCockpit && (!grid.BlocksCounters.ContainsKey(cockpitTypeId) || grid.BlocksCounters[cockpitTypeId] == 0)))
+								if (!IsMoving(grid) || !HasActivationBlock(grid))
 								{
 									if (!PassiveGrids.Contains(grid))
 									{
