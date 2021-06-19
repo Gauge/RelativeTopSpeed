@@ -222,6 +222,7 @@ namespace RelativeTopSpeed
 								if (controlledEntity != null && controlledEntity is IMyCubeBlock && (controlledEntity as IMyCubeBlock).CubeGrid.Physics != null)
 								{
 									IMyCubeGrid grid = (controlledEntity as IMyCubeBlock).CubeGrid;
+
 									float mass = grid.Physics.Mass;
 									float speed = grid.Physics.Speed;
 									float cruiseSpeed = GetCruiseSpeed(mass, grid.GridSizeEnum == MyCubeSize.Large);
@@ -352,7 +353,7 @@ namespace RelativeTopSpeed
 			if (grid == null || grid.Physics == null)
 				return new float[6];
 
-			float mass = grid.Physics.Mass;
+			float mass = ((MyCubeGrid)grid).GetCurrentMass();
 
 			float[] accelerations = new float[6];
 
@@ -381,7 +382,7 @@ namespace RelativeTopSpeed
 		{
 			if (grid != null && grid.Physics != null)
 			{
-				return GetCruiseSpeed(grid.Physics.Mass, grid.GridSizeEnum == MyCubeSize.Large);
+				return GetCruiseSpeed(((MyCubeGrid)grid).GetCurrentMass(), grid.GridSizeEnum == MyCubeSize.Large);
 			}
 
 			return 0;
