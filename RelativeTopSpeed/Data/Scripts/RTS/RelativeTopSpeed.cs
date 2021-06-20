@@ -3,6 +3,7 @@ using Sandbox.Game.Entities;
 using Sandbox.ModAPI;
 using SENetworkAPI;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using VRage.Game;
 using VRage.Game.Components;
@@ -26,9 +27,10 @@ namespace RelativeTopSpeed
 		public NetSync<Settings> cfg;
 		public static event Action<Settings> SettingsChanged;
 
+		ConcurrentDictionary<long, Vector3> AccelForces = new ConcurrentDictionary<long, Vector3>();
 
 		private bool showHud = false;
-		
+
 		private byte waitInterval = 0;
 		private List<MyCubeGrid> ActiveGrids = new List<MyCubeGrid>();
 		private List<MyCubeGrid> PassiveGrids = new List<MyCubeGrid>();
@@ -193,87 +195,97 @@ namespace RelativeTopSpeed
 
 		public override void Simulate()
 		{
-			lock (ActiveGrids)
+			// update active / passive grids every 3 seconds
+			if (waitInterval == 0)
 			{
-				lock (DisabledGrids)
+				for (int i = 0; i < PassiveGrids.Count; i++)
 				{
-					lock (PassiveGrids)
+					MyCubeGrid grid = PassiveGrids[i];
+
+					if (!HasActivationBlock(grid))
 					{
-						// update active / passive grids every 3 seconds
-						if (waitInterval == 0)
+						continue;
+					}
+
+					if (IsMoving(grid))
+					{
+						if (!ActiveGrids.Contains(grid))
 						{
-							for (int i = 0; i < PassiveGrids.Count; i++)
-							{
-								MyCubeGrid grid = PassiveGrids[i];
-
-								if (!HasActivationBlock(grid))
-								{
-									continue;
-								}
-
-								if (IsMoving(grid))
-								{
-									if (!ActiveGrids.Contains(grid))
-									{
-										ActiveGrids.Add(grid);
-									}
-
-									PassiveGrids.Remove(grid);
-									i--;
-								}
-							}
-
-							for (int i = 0; i < ActiveGrids.Count; i++)
-							{
-								MyCubeGrid grid = ActiveGrids[i];
-								if (!IsMoving(grid) || !HasActivationBlock(grid))
-								{
-									if (!PassiveGrids.Contains(grid))
-									{
-										PassiveGrids.Add(grid);
-									}
-
-									ActiveGrids.Remove(grid);
-									i--;
-								}
-							}
-
-							waitInterval = 180; // reset
+							ActiveGrids.Add(grid);
 						}
 
-						MyAPIGateway.Parallel.For(0, ActiveGrids.Count, UpdateGrid);
+						PassiveGrids.Remove(grid);
+						i--;
+					}
+				}
 
-						if (!MyAPIGateway.Utilities.IsDedicated)
+				for (int i = 0; i < ActiveGrids.Count; i++)
+				{
+					MyCubeGrid grid = ActiveGrids[i];
+					if (!IsMoving(grid) || !HasActivationBlock(grid))
+					{
+						if (!PassiveGrids.Contains(grid))
 						{
-							if (showHud)
-							{
-								IMyControllableEntity controlledEntity = MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity;
-								if (controlledEntity != null && controlledEntity is IMyCubeBlock && (controlledEntity as IMyCubeBlock).CubeGrid.Physics != null)
-								{
-									IMyCubeGrid grid = (controlledEntity as IMyCubeBlock).CubeGrid;
+							PassiveGrids.Add(grid);
+						}
 
-									float mass = grid.Physics.Mass;
-									float speed = grid.Physics.Speed;
-									float cruiseSpeed = GetCruiseSpeed(mass, grid.GridSizeEnum == MyCubeSize.Large);
+						ActiveGrids.Remove(grid);
+						i--;
+					}
+				}
 
-									float boost = GetBoost(grid)[3];
-									float resistance = (grid.GridSizeEnum == MyCubeSize.Large) ? cfg.Value.LargeGrid_ResistanceMultiplier : cfg.Value.SmallGrid_ResistanceMultiplyer;
+				foreach (long key in AccelForces.Keys)
+				{
+					try
+					{
+						Vector3 value;
+						AccelForces.TryGetValue(key, out value);
 
-									MyAPIGateway.Utilities.ShowNotification($"Mass: {mass.ToString("n0")}   Cruise: {cruiseSpeed.ToString("n2")}   Max Boost: {(boost).ToString("n2")}", 1);
-								}
-							}
-
-							if (Settings.Debug && IsAllowedSpecialOperations(MyAPIGateway.Session.LocalHumanPlayer.SteamUserId))
-							{
-								MyAPIGateway.Utilities.ShowNotification($"Grids - Active: {ActiveGrids.Count}  Passive: {PassiveGrids.Count}  Disabled: {DisabledGrids.Count}", 1);
-							}
+						if (value == Vector3.Zero)
+						{
+							AccelForces.TryRemove(key, out value);
 						}
 					}
+					catch { }
+				}
+
+				waitInterval = 180; // reset
+			}
+
+			for (int i = 0; i < ActiveGrids.Count; i++)
+			{
+				UpdateGrid(i);
+			}
+
+			if (!MyAPIGateway.Utilities.IsDedicated)
+			{
+				if (showHud)
+				{
+					IMyControllableEntity controlledEntity = MyAPIGateway.Session.LocalHumanPlayer.Controller.ControlledEntity;
+					if (controlledEntity != null && controlledEntity is IMyCubeBlock && (controlledEntity as IMyCubeBlock).CubeGrid.Physics != null)
+					{
+						IMyCubeGrid grid = (controlledEntity as IMyCubeBlock).CubeGrid;
+
+						float mass = grid.Physics.Mass;
+						float speed = grid.Physics.Speed;
+						float cruiseSpeed = GetCruiseSpeed(mass, grid.GridSizeEnum == MyCubeSize.Large);
+
+						float boost = GetBoost(grid)[3];
+						float resistance = (grid.GridSizeEnum == MyCubeSize.Large) ? cfg.Value.LargeGrid_ResistanceMultiplier : cfg.Value.SmallGrid_ResistanceMultiplyer;
+
+						MyAPIGateway.Utilities.ShowNotification($"Mass: {mass.ToString("n0")}   Cruise: {cruiseSpeed.ToString("n2")}   Max Boost: {(boost).ToString("n2")}", 1);
+					}
+				}
+
+				if (Settings.Debug && IsAllowedSpecialOperations(MyAPIGateway.Session.LocalHumanPlayer.SteamUserId))
+				{
+					MyAPIGateway.Utilities.ShowNotification($"Grids - Active: {ActiveGrids.Count}  Passive: {PassiveGrids.Count}  Disabled: {DisabledGrids.Count}", 1);
 				}
 			}
 
 			waitInterval--;
 		}
+
 
 		private void UpdateGrid(int index)
 		{
@@ -304,10 +316,37 @@ namespace RelativeTopSpeed
 				}
 				else
 				{
-					if (speed > cruiseSpeed)
+					Vector3 inverseAccelerationForce = Vector3.Zero;
+
+					if (!MyUtils.IsZero(grid.Physics.LinearAcceleration))
 					{
-						Vector3 linear = grid.Physics.LinearVelocity * (cruiseSpeed / speed);
-						grid.Physics.SetSpeeds(linear, grid.Physics.AngularVelocity);
+						Vector3 addjustedAccel = (grid.Physics.LinearAcceleration * 0.01666666666666666666f);
+
+						if (Math.Abs(addjustedAccel.LengthSquared() - grid.Physics.LinearVelocity.LengthSquared()) < 1)
+						{
+							return;
+						}
+
+						Vector3 lastAccelForce = AccelForces.GetOrAdd(grid.EntityId, Vector3.Zero);
+
+						Vector3 velocityAfterAccel = (grid.Physics.LinearVelocity + lastAccelForce + addjustedAccel);
+						float speedAfterAccel = velocityAfterAccel.Length();
+
+						if (speedAfterAccel > cruiseSpeed)
+						{
+							AccelForces.TryUpdate(grid.EntityId, velocityAfterAccel * (1 - (cruiseSpeed / speedAfterAccel)), lastAccelForce);
+						}
+						else
+						{
+							AccelForces.TryUpdate(grid.EntityId, Vector3.Zero, lastAccelForce);
+						}
+					}
+
+					inverseAccelerationForce = -AccelForces.GetOrAdd(grid.EntityId, Vector3.Zero) * mass;
+
+					if (!MyUtils.IsZero(inverseAccelerationForce))
+					{
+						grid.Physics.AddForce(MyPhysicsForceType.APPLY_WORLD_IMPULSE_AND_WORLD_ANGULAR_IMPULSE, inverseAccelerationForce, grid.Physics.CenterOfMassWorld, null);
 					}
 				}
 			}
@@ -364,7 +403,7 @@ namespace RelativeTopSpeed
 
 		}
 
-		public float[] GetBoost(IMyCubeGrid grid) 
+		public float[] GetBoost(IMyCubeGrid grid)
 		{
 			float[] accels = GetAcceleration(grid);
 			float resistance = (grid.GridSizeEnum == MyCubeSize.Large) ? cfg.Value.LargeGrid_ResistanceMultiplier : cfg.Value.SmallGrid_ResistanceMultiplyer;
@@ -390,7 +429,7 @@ namespace RelativeTopSpeed
 			{
 				if (!(slim.FatBlock is IMyThrust))
 					continue;
-				
+
 				IMyThrust thruster = slim.FatBlock as IMyThrust;
 
 				Direction direction = GetDirection(thruster.GridThrustDirection);
@@ -407,7 +446,7 @@ namespace RelativeTopSpeed
 			return accelerations;
 		}
 
-		public float GetCruiseSpeed(IMyCubeGrid grid) 
+		public float GetCruiseSpeed(IMyCubeGrid grid)
 		{
 			if (grid != null && grid.Physics != null)
 			{
@@ -417,12 +456,12 @@ namespace RelativeTopSpeed
 			return 0;
 		}
 
-		public float GetMaxSpeed(IMyCubeGrid grid) 
+		public float GetMaxSpeed(IMyCubeGrid grid)
 		{
 			float speed = GetCruiseSpeed(grid);
 
 			if (cfg.Value.EnableBoosting)
-			{ 
+			{
 				speed += GetBoost(grid)[3];
 			}
 
