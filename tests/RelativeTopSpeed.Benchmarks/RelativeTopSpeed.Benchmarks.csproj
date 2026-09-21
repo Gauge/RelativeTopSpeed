@@ -5,7 +5,7 @@
     <NuGetAudit>false</NuGetAudit>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../../RTS/**/*.cs" LinkBase="Production" />
+    <Compile Include="../../RelativeTopSpeed/**/*.cs" Exclude="../../RelativeTopSpeed/bin/**/*.cs;../../RelativeTopSpeed/obj/**/*.cs" LinkBase="Production" />
     <Compile Include="../RelativeTopSpeed.Tests/Stubs/*.cs" LinkBase="Stubs" />
     <PackageReference Include="protobuf-net" Version="3.2.30" />
   </ItemGroup>

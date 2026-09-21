@@ -1,0 +1,65 @@
+{
+  "namespace": "RelativeTopSpeed",
+  "client": "RtsApi",
+  "provider": "RelativeTopSpeed",
+  "displayName": "Relative Top Speed",
+  "channel": 2772681332,
+  "methods": [
+    {
+      "name": "GetCruiseSpeed",
+      "returns": "float",
+      "parameters": [
+        {
+          "type": "IMyCubeGrid",
+          "name": "grid"
+        }
+      ],
+      "summary": "Returns the cruising speed of the grid."
+    },
+    {
+      "name": "GetMaxSpeed",
+      "returns": "float",
+      "parameters": [
+        {
+          "type": "IMyCubeGrid",
+          "name": "grid"
+        }
+      ],
+      "summary": "Returns the maximum speed, including boost and configured caps."
+    },
+    {
+      "name": "GetBoost",
+      "returns": "float[]",
+      "parameters": [
+        {
+          "type": "IMyCubeGrid",
+          "name": "grid"
+        }
+      ],
+      "summary": "Returns forward boost, minimum, average, and maximum."
+    },
+    {
+      "name": "GetAcceleration",
+      "returns": "float[]",
+      "parameters": [
+        {
+          "type": "IMyCubeGrid",
+          "name": "grid"
+        }
+      ],
+      "summary": "Returns forward acceleration, minimum, average, and maximum."
+    },
+    {
+      "name": "GetAccelerationByDirection",
+      "returns": "float[]",
+      "parameters": [
+        {
+          "type": "IMyCubeGrid",
+          "name": "grid"
+        }
+      ],
+      "summary": "Returns acceleration indexed by Base6Directions.Direction (Forward, Backward, Left, Right, Up, Down). Each entry describes thrust in that grid direction; movement acceleration is in the opposite direction.",
+      "providerMethod": "GetAccelerationsByDirection"
+    }
+  ]
+}

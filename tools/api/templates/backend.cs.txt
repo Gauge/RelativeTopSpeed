@@ -3,17 +3,17 @@ using System;
 using System.Collections.Generic;
 using VRage.Game.ModAPI;
 
-namespace RelativeTopSpeed
+namespace @@NAMESPACE@@
 {
-    public class RtsApiBackend
+    public class @@CLIENT@@Backend
     {
-        private const long ChannelId = 2772681332;
+        private const long ChannelId = @@CHANNEL@@;
         private static Dictionary<string, Delegate> APIMethods;
 
-        private static RelativeTopSpeed RTS;
+        private static @@PROVIDER@@ RTS;
         public static bool IsInitialized => RTS != null;
 
-        public static void Init(RelativeTopSpeed rts)
+        public static void Init(@@PROVIDER@@ rts)
         {
             if (rts == null) throw new ArgumentNullException("rts");
             if (IsInitialized) Close();
@@ -21,11 +21,7 @@ namespace RelativeTopSpeed
 
             APIMethods = new Dictionary<string, Delegate>()
             {
-                ["GetCruiseSpeed"] = new Func<IMyCubeGrid, float>(RTS.GetCruiseSpeed),
-                ["GetMaxSpeed"] = new Func<IMyCubeGrid, float>(RTS.GetMaxSpeed),
-                ["GetBoost"] = new Func<IMyCubeGrid, float[]>(RTS.GetBoost),
-                ["GetAcceleration"] = new Func<IMyCubeGrid, float[]>(RTS.GetAcceleration),
-                ["GetAccelerationByDirection"] = new Func<IMyCubeGrid, float[]>(RTS.GetAccelerationsByDirection),
+@@REGISTRATIONS@@
             };
 
             MyAPIGateway.Utilities.RegisterMessageHandler(ChannelId, OnMessageRecieved);

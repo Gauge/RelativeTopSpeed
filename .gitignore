@@ -55,6 +55,7 @@ App.config
 packages/
 
 TestResults/
+__pycache__/
 
 # MDK2 local machine configuration (game and deployment paths)
 *.mdk.local.ini

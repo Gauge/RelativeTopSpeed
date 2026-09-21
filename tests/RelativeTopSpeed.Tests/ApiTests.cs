@@ -46,6 +46,67 @@ namespace RelativeTopSpeed.Tests
             Assert.Throws<ArgumentNullException>(() => RtsApiBackend.Init(null));
         }
         [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void InvalidLastMethodCanRecoverWithoutPartialBinding(bool wrongSignature)
+        {
+            var api = new RtsApi();
+            int ready = 0;
+            api.Load(() => ready++);
+            var endpoint = new Dictionary<string, Delegate>
+            {
+                ["GetCruiseSpeed"] = new Func<IMyCubeGrid, float>(grid => -123),
+                ["GetMaxSpeed"] = new Func<IMyCubeGrid, float>(grid => -456),
+                ["GetBoost"] = new Func<IMyCubeGrid, float[]>(grid => new float[4]),
+                ["GetAcceleration"] = new Func<IMyCubeGrid, float[]>(grid => new float[4]),
+            };
+            if (wrongSignature)
+                endpoint["GetAccelerationByDirection"] = new Func<IMyCubeGrid, float>(grid => 0);
+            Assert.Throws<Exception>(() => Game.Utilities.SendModMessage(2772681332, endpoint));
+            Assert.False(api.IsReady);
+            Assert.Equal(0, ready);
+            Assert.Throws<InvalidOperationException>(() => api.GetCruiseSpeed(Grid()));
+            Start(Unfiltered());
+            Assert.True(api.IsReady);
+            Assert.Equal(1, ready);
+            Assert.Equal(Mod.GetCruiseSpeed(Grid()), api.GetCruiseSpeed(Grid()));
+            api.Unload();
+        }
+
+        [Fact]
+        public void BoundCallsDoNotUseDiscoveryAndConsumerCanReload()
+        {
+            Start(Unfiltered());
+            var api = new RtsApi();
+            api.Load();
+            int messages = 0;
+            Action<object> observer = message => messages++;
+            Game.Utilities.RegisterMessageHandler(2772681332, observer);
+            try
+            {
+                var grid = Grid();
+                for (int i = 0; i < 10; i++)
+                {
+                    Assert.Equal(Mod.GetCruiseSpeed(grid), api.GetCruiseSpeed(grid));
+                    Assert.Equal(Mod.GetMaxSpeed(grid), api.GetMaxSpeed(grid));
+                    Assert.Equal(Mod.GetBoost(grid), api.GetBoost(grid));
+                    Assert.Equal(Mod.GetAcceleration(grid), api.GetAcceleration(grid));
+                    Assert.Equal(Mod.GetAccelerationsByDirection(grid), api.GetAccelerationByDirection(grid));
+                }
+                Assert.Equal(0, messages);
+                api.Unload();
+                Assert.Throws<InvalidOperationException>(() => api.GetAccelerationByDirection(grid));
+                api.Load();
+                Assert.True(api.IsReady);
+                Assert.Equal(Mod.GetMaxSpeed(grid), api.GetMaxSpeed(grid));
+            }
+            finally
+            {
+                api.Unload();
+                Game.Utilities.UnregisterMessageHandler(2772681332, observer);
+            }
+        }
+        [Theory]
         [InlineData(true)]
         [InlineData(false)]
         public void ApiMaximumRespectsBoostAndWorldCaps(bool boost)

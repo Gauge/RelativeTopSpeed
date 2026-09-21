@@ -1,0 +1,83 @@
+using Sandbox.ModAPI;
+using System;
+using System.Collections.Generic;
+using VRage.Game.ModAPI;
+
+namespace @@NAMESPACE@@
+{
+    public class @@CLIENT@@
+    {
+        private const long ChannelId = @@CHANNEL@@;
+        public bool IsReady { get; private set; }
+
+        private Action ReadyCallback;
+
+        private bool isRegistered = false;
+
+        public void Load(Action readyCallback = null)
+        {
+            if (isRegistered)
+                throw new Exception($"{GetType().Name}.Load() should not be called multiple times!");
+
+            isRegistered = true;
+            ReadyCallback = readyCallback;
+            MyAPIGateway.Utilities.RegisterMessageHandler(ChannelId, HandleMessage);
+            MyAPIGateway.Utilities.SendModMessage(ChannelId, "ApiEndpointRequest");
+        }
+
+        public void Unload()
+        {
+            if (!isRegistered) return;
+            MyAPIGateway.Utilities.UnregisterMessageHandler(ChannelId, HandleMessage);
+            IsReady = false;
+            isRegistered = false;
+            ReadyCallback = null;
+@@CLEAR@@
+        }
+
+        private void HandleMessage(object obj)
+        {
+            if (obj is string) // the sent "ApiEndpointRequest" will also be received here, explicitly ignoring that
+                return;
+
+            var dict = obj as IReadOnlyDictionary<string, Delegate>;
+
+            if (dict == null)
+                return;
+
+            if (IsReady) return;
+            // Bind atomically: a malformed endpoint must not leave partial delegates.
+@@BIND@@
+
+            IsReady = true;
+            ReadyCallback?.Invoke();
+        }
+
+        private void EnsureReady()
+        {
+            if (!IsReady) throw new InvalidOperationException("@@DISPLAY_NAME@@ API is not ready.");
+        }
+
+        private void AssignMethod<T>(IReadOnlyDictionary<string, Delegate> delegates, string name, ref T field) where T : class
+        {
+            if (delegates == null)
+            {
+                field = null;
+                return;
+            }
+
+            Delegate del;
+            if (!delegates.TryGetValue(name, out del))
+                throw new Exception($"{GetType().Name} :: Couldn't find {name} delegate of type {typeof(T)}");
+
+            field = del as T;
+
+            if (field == null)
+                throw new Exception(
+                    $"{GetType().Name} :: Delegate {name} is not type {typeof(T)}, instead it's: {del?.GetType()}");
+        }
+
+
+@@METHODS@@
+    }
+}

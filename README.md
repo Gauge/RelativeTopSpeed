@@ -4,7 +4,7 @@ Space Engineers mod that derives ship cruise speeds from mass, optionally allowi
 
 ## Build and test
 
-The source files live under `RTS` and MDK2 packages them into `Data/Scripts/RelativeTopSpeed` when loading the mod. This repository is configured as an MDK2 mod project: a build validates the sources against the installed game assemblies and the MDK whitelist, then packages the playable mod into the configured MDK2 mod-output directory. It targets .NET Framework 4.8 with C# 6.
+The source files live under `RelativeTopSpeed` and MDK2 packages them into `Data/Scripts/RelativeTopSpeed` when loading the mod. This repository is configured as an MDK2 mod project: a build validates the sources against the installed game assemblies and the MDK whitelist, then packages the playable mod into the configured MDK2 mod-output directory. It targets .NET Framework 4.8 with C# 6.
 
 ```sh
 dotnet build RelativeTopSpeed.csproj -c Release
@@ -90,9 +90,16 @@ Build the project, then replace the packaged mod folder's `Data/Scripts/Relative
 
 The refactor changes several observable behaviors: local reloads notify subscribers; API speed estimates use the same physics mass as enforcement and respect boost caps; non-boosted coasting ships are capped; delayed-physics grids are tracked; private multiplayer sessions synchronize settings; and remote reload permission checks the sender ID supplied by SENetworkAPI. Networking and API handlers are detached when the session ends.
 
+## Cross-mod API generation
+
+The cross-mod delegate API is generated from [`api/rts.json`](api/rts.json).
+See the [generator workflow](api/README.md) for changing the contract, regenerating
+the consumer/backend, and checking compatibility. Production builds require
+Python 3 for generation; consumers still copy only `RtsApi.cs`.
+
 ## SENetworkAPI dependency
 
-The bundled dependency is an unchanged copy of [Gauge/SENetworkAPI](https://github.com/Gauge/SENetworkAPI) 2.0.0 at commit `3a83159f63cad90916df351e801c2b8e17031544`, with its MIT license. Its upstream C# test suite is included under `tests/RelativeTopSpeed.Tests/Upstream`. See [source provenance](RTS/SENetworkAPI/UPSTREAM.md).
+The bundled dependency is an unchanged copy of [Gauge/SENetworkAPI](https://github.com/Gauge/SENetworkAPI) 2.0.0 at commit `3a83159f63cad90916df351e801c2b8e17031544`, with its MIT license. Its upstream C# test suite is included under `tests/RelativeTopSpeed.Tests/Upstream`. See [source provenance](RelativeTopSpeed/SENetworkAPI/UPSTREAM.md).
 
 Upstream uses legacy message handlers: sender IDs are claimed by the packet, and property transfer direction is not enforced on receipt. The remote reload promotion check is therefore not a reliable authorization boundary against modified clients, and settings packets inherit the same trust limitation. These are documented [upstream limitations](https://github.com/Gauge/SENetworkAPI/blob/3a83159f63cad90916df351e801c2b8e17031544/docs/known-issues.md), covered by its sender-identity tests. Upstream also expects a single space between `/rts` and its command.
 

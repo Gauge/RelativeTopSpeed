@@ -7,6 +7,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: python3 tools/api/generate.py --check
+      - run: python3 -m unittest discover -s tools/api -p 'test_*.py'
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '9.0.x'
