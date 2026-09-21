@@ -2,18 +2,18 @@
 
 Workshop item: [Relative Top Speed, 1359618037](https://steamcommunity.com/sharedfiles/filedetails/?id=1359618037).
 
-`RelativeTopSpeed/modinfo.sbmi` links the upload folder to that existing item. Its owner ID, `76561198079985653`, was verified through Steam's public GetPublishedFileDetails API and matches the owner's other local mod metadata. Log into that Steam account when publishing. Editing this file does not grant ownership of an item.
+`modinfo.sbmi` is included by MDK2 and links each packaged folder to that existing item. Its owner ID, `76561198079985653`, was verified through Steam's public GetPublishedFileDetails API and matches the owner's other local mod metadata. Log into that Steam account when publishing. Editing this file does not grant ownership of an item.
 
 ## Prepare the local mod
 
-Copy the **inner** `RelativeTopSpeed` folder into the game's local `Mods` directory. Do not copy the repository root, test projects or build output. The layout must be:
+Build the project, then use MDK2's packaged `RelativeTopSpeed` folder in the configured output directory. Do not copy the repository root, test projects or build output. The layout must be:
 
 ```text
 SpaceEngineers/Mods/RelativeTopSpeed/
   modinfo.sbmi
   Data/
     Scripts/
-      RTS/
+      RelativeTopSpeed/
         ...all current source files and SENetworkAPI...
 ```
 
@@ -21,7 +21,7 @@ Windows local mods are under `%APPDATA%\SpaceEngineers\Mods`.
 
 On Linux using Proton, look inside the game's Steam library at `steamapps/compatdata/244850/pfx/drive_c/users/steamuser/AppData/Roaming/SpaceEngineers/Mods`. A custom Wine/Proton prefix may use a different location.
 
-If an old local copy already exists, back it up outside `Mods` and replace its `Data` folder with the current one. Overlaying files can leave obsolete C# files behind and cause duplicate definitions. Keep the supplied `modinfo.sbmi` alongside `Data`. Preserve existing thumbnail artwork if available.
+If an old local copy already exists, back it up outside `Mods` and replace it with the MDK2 output. Overlaying files can leave obsolete C# files behind and cause duplicate definitions. Keep the supplied `modinfo.sbmi` alongside `Data`. Preserve existing thumbnail artwork if available.
 
 ## Publish the update
 

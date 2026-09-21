@@ -1,31 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
+    <Platforms>x64</Platforms>
     <LangVersion>6</LangVersion>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateNeutralResourcesLanguageAttribute>false</GenerateNeutralResourcesLanguageAttribute>
+    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <NuGetAudit>false</NuGetAudit>
-    <GameBin Condition="'$(GameBin)' == ''">$(SE_BIN64)</GameBin>
-    <GameBin Condition="'$(GameBin)' == '' and Exists('$(HOME)/Steam/SteamLibrary/steamapps/common/SpaceEngineers/Bin64')">$(HOME)/Steam/SteamLibrary/steamapps/common/SpaceEngineers/Bin64</GameBin>
-    <GameBin Condition="'$(GameBin)' == '' and Exists('$(HOME)/.steam/steam/steamapps/common/SpaceEngineers/Bin64')">$(HOME)/.steam/steam/steamapps/common/SpaceEngineers/Bin64</GameBin>
-    <GameBin Condition="'$(GameBin)' == ''">C:/Program Files (x86)/Steam/steamapps/common/SpaceEngineers/Bin64</GameBin>
   </PropertyGroup>
-  <Target Name="RequireGameBin" BeforeTargets="ResolveReferences" Condition="!Exists('$(GameBin)/Sandbox.Game.dll')">
-    <Error Text="Set SE_BIN64 or pass -p:GameBin=/path/to/SpaceEngineers/Bin64." />
-  </Target>
   <ItemGroup>
-    <PackageReference Include="Mal.Mdk2.ModAnalyzers" Version="2.1.15" PrivateAssets="all" />
+    <PackageReference Include="Mal.Mdk2.ModAnalyzers" Version="2.1.16" PrivateAssets="all" />
+    <PackageReference Include="Mal.Mdk2.ModPackager" Version="2.2.11" PrivateAssets="all" />
+    <PackageReference Include="Mal.Mdk2.References" Version="2.2.9" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
-    <Compile Include="RelativeTopSpeed/Data/Scripts/**/*.cs" />
-    <Reference Include="Sandbox.Common"><HintPath>$(GameBin)/Sandbox.Common.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Sandbox.Game"><HintPath>$(GameBin)/Sandbox.Game.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="Sandbox.Graphics"><HintPath>$(GameBin)/Sandbox.Graphics.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="SpaceEngineers.Game"><HintPath>$(GameBin)/SpaceEngineers.Game.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="SpaceEngineers.ObjectBuilders"><HintPath>$(GameBin)/SpaceEngineers.ObjectBuilders.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="VRage"><HintPath>$(GameBin)/VRage.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="VRage.Game"><HintPath>$(GameBin)/VRage.Game.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="VRage.Library"><HintPath>$(GameBin)/VRage.Library.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="VRage.Math"><HintPath>$(GameBin)/VRage.Math.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="ProtoBuf.Net.Core"><HintPath>$(GameBin)/ProtoBuf.Net.Core.dll</HintPath><Private>false</Private></Reference>
+    <Compile Include="RTS/**/*.cs" />
+    <AdditionalFiles Include="modinfo.sbmi" />
   </ItemGroup>
 </Project>

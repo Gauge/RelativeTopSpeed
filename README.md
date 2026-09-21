@@ -4,13 +4,22 @@ Space Engineers mod that derives ship cruise speeds from mass, optionally allowi
 
 ## Build and test
 
-The game compiles the C# sources under `RelativeTopSpeed/Data/Scripts` when loading the mod. The build below checks those same sources against the installed game assemblies and the MDK mod whitelist. It targets .NET Framework 4.8 with C# 6.
+The source files live under `RTS` and MDK2 packages them into `Data/Scripts/RelativeTopSpeed` when loading the mod. This repository is configured as an MDK2 mod project: a build validates the sources against the installed game assemblies and the MDK whitelist, then packages the playable mod into the configured MDK2 mod-output directory. It targets .NET Framework 4.8 with C# 6.
 
 ```sh
-dotnet build RelativeTopSpeed.csproj -c Release -p:GameBin="/path/to/SpaceEngineers/Bin64"
+dotnet build RelativeTopSpeed.csproj -c Release
 ```
 
-`SE_BIN64` can supply the game directory instead. Common Steam locations are detected automatically. Game DLLs are referenced locally and are not included in this repository.
+Install MDK2 (the Hub is recommended) before building. Configure its Space Engineers `Bin64` and mod output paths in the Hub, or add an untracked `mdk.local.ini` beside the project file:
+
+```ini
+[mdk]
+binarypath=/path/to/SpaceEngineers/Bin64
+output=/path/to/SpaceEngineers/Mods
+interactive=DoNothing
+```
+
+MDK2 copies the packaged `RelativeTopSpeed` folder to `output`; it never copies game DLLs into the repository or mod. `mdk.ini` is the shared project configuration and deliberately keeps minification disabled so reflection- and serialization-sensitive mod code is left unchanged.
 
 The C# xUnit suite needs a .NET SDK supporting `net9.0`, but does not need the game:
 
@@ -75,15 +84,15 @@ New files contain the current version and default point curves. Malformed curren
 
 ## Updating an installed mod
 
-To upload to the existing Workshop item **1359618037**, follow [publishing instructions](docs/publishing.md). The inner `RelativeTopSpeed` folder now contains the required `modinfo.sbmi`.
+To upload to the existing Workshop item **1359618037**, follow [publishing instructions](docs/publishing.md). MDK2 includes the required root `modinfo.sbmi` in each packaged mod folder.
 
-Replace the entire `RelativeTopSpeed/Data/Scripts/RTS` directory, including the new files, and restart the world. Update the server and clients together. The public delegate names, API channel, network channel and serialized field numbers remain unchanged.
+Build the project, then replace the packaged mod folder's `Data/Scripts/RelativeTopSpeed` directory, including the new files, and restart the world. Update the server and clients together. The public delegate names, API channel, network channel and serialized field numbers remain unchanged.
 
 The refactor changes several observable behaviors: local reloads notify subscribers; API speed estimates use the same physics mass as enforcement and respect boost caps; non-boosted coasting ships are capped; delayed-physics grids are tracked; private multiplayer sessions synchronize settings; and remote reload permission checks the sender ID supplied by SENetworkAPI. Networking and API handlers are detached when the session ends.
 
 ## SENetworkAPI dependency
 
-The bundled dependency is an unchanged copy of [Gauge/SENetworkAPI](https://github.com/Gauge/SENetworkAPI) 2.0.0 at commit `3a83159f63cad90916df351e801c2b8e17031544`, with its MIT license. Its upstream C# test suite is included under `tests/RelativeTopSpeed.Tests/Upstream`. See [source provenance](RelativeTopSpeed/Data/Scripts/RTS/SENetworkAPI/UPSTREAM.md).
+The bundled dependency is an unchanged copy of [Gauge/SENetworkAPI](https://github.com/Gauge/SENetworkAPI) 2.0.0 at commit `3a83159f63cad90916df351e801c2b8e17031544`, with its MIT license. Its upstream C# test suite is included under `tests/RelativeTopSpeed.Tests/Upstream`. See [source provenance](RTS/SENetworkAPI/UPSTREAM.md).
 
 Upstream uses legacy message handlers: sender IDs are claimed by the packet, and property transfer direction is not enforced on receipt. The remote reload promotion check is therefore not a reliable authorization boundary against modified clients, and settings packets inherit the same trust limitation. These are documented [upstream limitations](https://github.com/Gauge/SENetworkAPI/blob/3a83159f63cad90916df351e801c2b8e17031544/docs/known-issues.md), covered by its sender-identity tests. Upstream also expects a single space between `/rts` and its command.
 

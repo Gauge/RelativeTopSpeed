@@ -55,3 +55,6 @@ App.config
 packages/
 
 TestResults/
+
+# MDK2 local machine configuration (game and deployment paths)
+*.mdk.local.ini
