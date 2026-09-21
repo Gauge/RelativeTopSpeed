@@ -1,4 +1,5 @@
 ﻿using ProtoBuf;
+using System.Collections.Generic;
 
 namespace SENetworkAPI
 {
@@ -19,5 +20,9 @@ namespace SENetworkAPI
 		public bool IsProperty { get; set; }
 		[ProtoMember(7)]
 		public bool IsCompressed { get; set; }
+		[ProtoMember(8)]
+		public SyncData Property { get; set; }
+		[ProtoMember(9)]
+		public List<SyncData> Properties { get; set; }
 	}
 }

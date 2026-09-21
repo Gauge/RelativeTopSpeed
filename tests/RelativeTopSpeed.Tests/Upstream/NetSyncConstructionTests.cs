@@ -1,0 +1,403 @@
+using System;
+using SEStubs;
+using Sandbox.Game.Entities;
+using VRage.Game.Components;
+using VRage.Game.Entity;
+using VRage.ModAPI;
+using VRageMath;
+using Xunit;
+
+namespace SENetworkAPI.Tests
+{
+	/// <summary>
+	/// NetSync construction: id assignment, registry bookkeeping and the
+	/// sync-on-load hook.
+	/// </summary>
+	public class NetSyncConstructionTests : NetworkTestBase
+	{
+		private class TestLogic : MyGameLogicComponent { }
+
+		private class TestSessionComponent : MySessionComponentBase { }
+
+		[Fact]
+		public void NullEntity_Throws()
+		{
+			GivenClient();
+
+			Exception ex = Assert.Throws<Exception>(() => new NetSync<int>((MyEntity)null, TransferType.Both));
+
+			Assert.Contains("MyEntity was null", ex.Message);
+		}
+
+		[Fact]
+		public void NullIMyEntity_Throws()
+		{
+			GivenClient();
+
+			Assert.Throws<Exception>(() => new NetSync<int>((IMyEntity)null, TransferType.Both));
+		}
+
+		[Fact]
+		public void NullGameLogic_Throws()
+		{
+			GivenClient();
+
+			Exception ex = Assert.Throws<Exception>(() => new NetSync<int>((MyGameLogicComponent)null, TransferType.Both));
+
+			Assert.Contains("MyGameLogicComponent was null", ex.Message);
+		}
+
+		[Fact]
+		public void GameLogicWithoutAnEntity_Throws()
+		{
+			GivenClient();
+
+			Assert.Throws<Exception>(() => new NetSync<int>(new TestLogic(), TransferType.Both));
+		}
+
+		[Fact]
+		public void NullSessionComponent_Throws()
+		{
+			GivenClient();
+
+			Exception ex = Assert.Throws<Exception>(() => new NetSync<int>((MySessionComponentBase)null, TransferType.Both));
+
+			Assert.Contains("MySessionComponentBase was null", ex.Message);
+		}
+
+		[Fact]
+		public void GameLogicConstructor_BindsToTheOwningEntity()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+			TestLogic logic = new TestLogic { Entity = entity };
+
+			NetSync<int> property = new NetSync<int>(logic, TransferType.Both, 5);
+
+			Assert.Same(property, NetSync.PropertiesByEntity[entity][0]);
+			Assert.Equal(5, property.Value);
+		}
+
+		[Fact]
+		public void EntityProperties_AreIdentifiedByTheirDeclarationOrder()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+
+			NetSync<int> first = new NetSync<int>(entity, TransferType.Both);
+			NetSync<int> second = new NetSync<int>(entity, TransferType.Both);
+			NetSync<int> third = new NetSync<int>(entity, TransferType.Both);
+
+			Assert.Equal(0, first.Id);
+			Assert.Equal(1, second.Id);
+			Assert.Equal(2, third.Id);
+			Assert.Equal(3, NetSync.PropertiesByEntity[entity].Count);
+		}
+
+		[Fact]
+		public void EachEntity_HasItsOwnIdSequence()
+		{
+			GivenClient();
+			MyEntity a = Game.CreateEntity();
+			MyEntity b = Game.CreateEntity();
+
+			NetSync<int> first = new NetSync<int>(a, TransferType.Both);
+			NetSync<int> second = new NetSync<int>(b, TransferType.Both);
+
+			Assert.Equal(0, first.Id);
+			Assert.Equal(0, second.Id);
+		}
+
+		[Fact]
+		public void SessionProperties_UseAGloballyGeneratedId()
+		{
+			GivenClient();
+
+			NetSync<int> first = new NetSync<int>(new TestSessionComponent(), TransferType.Both);
+			NetSync<int> second = new NetSync<int>(new TestSessionComponent(), TransferType.Both);
+
+			Assert.Equal(1, first.Id);
+			Assert.Equal(2, second.Id);
+			Assert.Same(first, NetSync.PropertyById[1]);
+			Assert.Same(second, NetSync.PropertyById[2]);
+		}
+
+		[Fact]
+		public void EntityProperties_AreNotAddedToThePropertyByIdRegistry()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+
+			new NetSync<int>(entity, TransferType.Both);
+
+			Assert.Empty(NetSync.PropertyById);
+		}
+
+		[Fact]
+		public void ConstructorFlags_ArePreserved()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+
+			NetSync<int> property = new NetSync<int>(entity, TransferType.ServerToClient, 9, syncOnLoad: false, limitToSyncDistance: false);
+
+			Assert.Equal(TransferType.ServerToClient, property.TransferType);
+			Assert.False(property.SyncOnLoad);
+			Assert.False(property.LimitToSyncDistance);
+			Assert.Equal(9, property.Value);
+		}
+
+		[Fact]
+		public void EntityProperty_WithSyncOnLoad_DoesNotFetchUntilTheEntityEntersTheScene()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+			Game.ClearTraffic();
+
+			new NetSync<int>(entity, TransferType.Both);
+
+			Assert.Empty(Game.Sent);
+			Assert.Equal(1, entity.AddedToSceneSubscriberCount);
+		}
+
+		[Fact]
+		public void EntityProperty_FetchesOnceTheEntityEntersTheScene()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+			new NetSync<int>(entity, TransferType.Both);
+			Game.ClearTraffic();
+
+			entity.AddToScene();
+			Game.NextFrame();
+
+			SyncData sync = TheOnlySyncDataSent();
+			Assert.Equal(SyncType.Fetch, sync.SyncType);
+			Assert.Equal(entity.EntityId, sync.EntityId);
+		}
+
+		[Fact]
+		public void AnEntityIsHookedOnceHoweverManyPropertiesItHas()
+		{
+			// A grid streaming in creates thousands of these; one subscription
+			// per entity rather than one per property.
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+
+			for (int i = 0; i < 8; i++)
+			{
+				new NetSync<int>(entity, TransferType.Both);
+			}
+
+			Assert.Equal(1, entity.OnCloseSubscriberCount);
+			Assert.Equal(1, entity.AddedToSceneSubscriberCount);
+		}
+
+		[Fact]
+		public void EveryPropertyOnTheEntityFetchesWhenItEntersTheScene()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+
+			for (int i = 0; i < 8; i++)
+			{
+				new NetSync<int>(entity, TransferType.Both);
+			}
+
+			Game.ClearTraffic();
+			entity.AddToScene();
+			Game.NextFrame();
+
+			Assert.Equal(8, DecodeSyncDataList(Assert.Single(Game.Sent)).Count);
+		}
+
+		[Fact]
+		public void PropertiesThatOptOutOfSyncOnLoadAreLeftOutOfTheSceneFetch()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+			new NetSync<int>(entity, TransferType.Both);
+			new NetSync<int>(entity, TransferType.Both, 0, syncOnLoad: false);
+			new NetSync<int>(entity, TransferType.Both);
+
+			Game.ClearTraffic();
+			entity.AddToScene();
+			Game.NextFrame();
+
+			Assert.Equal(2, DecodeSyncDataList(Assert.Single(Game.Sent)).Count);
+		}
+
+		[Fact]
+		public void EntityProperty_UnsubscribesAfterItsFirstSceneEntry()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+			new NetSync<int>(entity, TransferType.Both);
+
+			entity.AddToScene();
+			Game.ClearTraffic();
+			entity.AddToScene();
+
+			Assert.Equal(0, entity.AddedToSceneSubscriberCount);
+			Assert.Empty(Game.Sent);
+		}
+
+		[Fact]
+		public void EntityProperty_WithoutSyncOnLoad_NeverHooksTheScene()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+
+			new NetSync<int>(entity, TransferType.Both, syncOnLoad: false);
+			entity.AddToScene();
+
+			Assert.Equal(0, entity.AddedToSceneSubscriberCount);
+			Assert.Empty(Game.Sent);
+		}
+
+		[Fact]
+		public void SessionProperty_WithSyncOnLoad_FetchesImmediately()
+		{
+			GivenClient();
+			Game.ClearTraffic();
+
+			new NetSync<int>(new TestSessionComponent(), TransferType.Both);
+			Game.NextFrame();
+
+			SyncData sync = TheOnlySyncDataSent();
+			Assert.Equal(SyncType.Fetch, sync.SyncType);
+			Assert.Equal(0, sync.EntityId);
+			Assert.Equal(1, sync.Id);
+		}
+
+		[Fact]
+		public void SessionProperty_WithoutSyncOnLoad_StaysQuiet()
+		{
+			GivenClient();
+			Game.ClearTraffic();
+
+			new NetSync<int>(new TestSessionComponent(), TransferType.Both, syncOnLoad: false);
+
+			Assert.Empty(Game.Sent);
+		}
+
+		[Fact]
+		public void SyncOnLoad_OnTheServer_SendsNothing_BecauseServersNeverFetch()
+		{
+			GivenServer();
+			Game.ClearTraffic();
+
+			new NetSync<int>(new TestSessionComponent(), TransferType.Both);
+
+			Assert.Empty(Game.Sent);
+		}
+
+		[Fact]
+		public void ClosingAnEntity_ReleasesItsProperties()
+		{
+			// This used to leak: the close handler removed an id from
+			// PropertyById, where entity properties never live, leaving the
+			// entity and its property list referenced for the whole session.
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+			new NetSync<int>(entity, TransferType.Both);
+			new NetSync<int>(entity, TransferType.Both);
+
+			entity.Close();
+
+			Assert.Empty(NetSync.PropertiesByEntity);
+		}
+
+		[Fact]
+		public void ClosingAnEntity_UnsubscribesFromItsEvents()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+			new NetSync<int>(entity, TransferType.Both);
+
+			entity.Close();
+
+			Assert.Equal(0, entity.OnCloseSubscriberCount);
+			Assert.Equal(0, entity.AddedToSceneSubscriberCount);
+		}
+
+		[Fact]
+		public void ClosingAnEntity_LeavesSessionPropertiesAlone()
+		{
+			// Entity property ids are per-entity indices (0, 1, 2 ...) and
+			// session property ids come from a global counter that also starts
+			// at 1. Closing an entity used to evict whichever session property
+			// held the colliding id.
+			GivenClient();
+			NetSync<int> sessionProperty = new NetSync<int>(new TestSessionComponent(), TransferType.Both);
+			Assert.Equal(1, sessionProperty.Id);
+
+			MyEntity entity = Game.CreateEntity();
+			new NetSync<int>(entity, TransferType.Both);   // Id 0
+			new NetSync<int>(entity, TransferType.Both);   // Id 1, same number
+			entity.Close();
+
+			Assert.True(NetSync.PropertyById.ContainsKey(1));
+			Assert.Same(sessionProperty, NetSync.PropertyById[1]);
+		}
+
+		[Fact]
+		public void UpdatesForAClosedEntity_AreIgnored()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+			NetSync<int> property = new NetSync<int>(entity, TransferType.Both, 5, syncOnLoad: false);
+			entity.Close();
+
+			Receive(EncodePropertyPacket(0, entity.EntityId, SyncType.Post, 42));
+
+			Assert.Equal(5, property.Value);
+			Assert.True(LoggedInfo("Entity not registered in dictionary"));
+		}
+
+		[Fact]
+		public void Descriptor_ForASessionProperty_NamesTheComponent()
+		{
+			GivenClient();
+
+			NetSync<string> property = new NetSync<string>(new TestSessionComponent(), TransferType.Both, string.Empty);
+
+			Assert.Equal($"<TestSessionComponent_String.{property.Id}>", property.Descriptor());
+		}
+
+		[Fact]
+		public void Descriptor_ForAnEntityProperty_NamesTheSubtypeAndEntityId()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity(subtypeId: "TestBlock");
+
+			NetSync<int> property = new NetSync<int>(entity, TransferType.Both);
+
+			Assert.Equal($"<TestBlock.{entity.EntityId}_Int32.0>", property.Descriptor());
+		}
+
+		[Fact]
+		public void Descriptor_WithoutADefinition_FallsBackToTheTypeName()
+		{
+			GivenClient();
+			MyEntity entity = Game.CreateEntity();
+
+			NetSync<int> property = new NetSync<int>(entity, TransferType.Both);
+
+			Assert.Equal($"<MyEntity.{entity.EntityId}_Int32.0>", property.Descriptor());
+		}
+
+		[Fact]
+		public void Descriptor_ForABlock_IncludesTheGridName()
+		{
+			GivenClient();
+			MyCubeBlock block = new MyCubeBlock { DefinitionId = new VRage.Game.MyDefinitionId("MyObjectBuilder_UpgradeModule", "TestBlock") };
+			block.CubeGrid.DisplayName = "Big Red";
+			Game.Entities.Add(block);
+
+			NetSync<int> property = new NetSync<int>(block, TransferType.Both);
+
+			Assert.Equal($"<Big Red_TestBlock.{block.EntityId}_Int32.0>", property.Descriptor());
+		}
+	}
+}

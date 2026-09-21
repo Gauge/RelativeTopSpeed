@@ -53,3 +53,5 @@ GameBinaries
 App.config
 .vs/
 packages/
+
+TestResults/
