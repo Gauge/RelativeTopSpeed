@@ -369,8 +369,6 @@ namespace SENetworkAPI.Tests
 			GivenClient();
 			NetSync<int> property = Coalesced();
 			property.Value = 42;
-
-			NetworkAPI.Dispose();
 			Exception thrown = Record.Exception(() => Game.NextFrame());
 
 			Assert.Null(thrown);

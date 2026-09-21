@@ -96,8 +96,6 @@ namespace RelativeTopSpeed
                 cfg = null;
             }
             RtsApiBackend.Close();
-            // Upstream owns the session-property registry and clears it here.
-            NetworkAPI.Dispose();
             Settings.Instance = null;
             SettingsChanged = null;
         }

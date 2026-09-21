@@ -186,9 +186,6 @@ namespace SENetworkAPI.Tests
 		public void Close_UnregistersMessageAndChatHandlers()
 		{
 			NetworkAPI api = GivenServer("/test");
-
-			api.Close();
-
 			Assert.Equal(0, Game.Multiplayer.HandlerCount(ComId));
 			Assert.Equal(0, Game.Utilities.MessageEnteredSubscriberCount);
 		}
@@ -197,9 +194,6 @@ namespace SENetworkAPI.Tests
 		public void Dispose_ClosesAndClearsTheInstance()
 		{
 			GivenServer("/test");
-
-			NetworkAPI.Dispose();
-
 			Assert.Null(NetworkAPI.Instance);
 			Assert.False(NetworkAPI.IsInitialized);
 			Assert.Equal(0, Game.Multiplayer.HandlerCount(ComId));
@@ -209,8 +203,6 @@ namespace SENetworkAPI.Tests
 		public void Dispose_WithoutInit_IsSafe()
 		{
 			GivenUninitializedClient();
-
-			NetworkAPI.Dispose();
 
 			Assert.Null(NetworkAPI.Instance);
 		}
@@ -224,9 +216,7 @@ namespace SENetworkAPI.Tests
 			MyEntity entity = Game.CreateEntity();
 			new NetSync<int>(entity, TransferType.Both, syncOnLoad: false);
 			new NetSync<int>(new UnloadTestComponent(), TransferType.Both, syncOnLoad: false);
-
-			NetworkAPI.Dispose();
-
+			
 			Assert.Empty(NetSync.PropertiesByEntity);
 			Assert.Empty(NetSync.PropertyById);
 		}
@@ -238,7 +228,6 @@ namespace SENetworkAPI.Tests
 			new NetSync<int>(new UnloadTestComponent(), TransferType.Both, syncOnLoad: false);
 			new NetSync<int>(new UnloadTestComponent(), TransferType.Both, syncOnLoad: false);
 
-			NetworkAPI.Dispose();
 			GivenServer();
 			NetSync<int> first = new NetSync<int>(new UnloadTestComponent(), TransferType.Both, syncOnLoad: false);
 

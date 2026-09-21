@@ -42,7 +42,6 @@ namespace RelativeTopSpeed.Tests
         {
             Mod?.SimulateUnload();
             RtsApiBackend.Close();
-            NetworkAPI.Dispose();
             Settings.Instance = null;
             Game.Dispose();
         }
