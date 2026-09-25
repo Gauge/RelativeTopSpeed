@@ -1,5 +1,6 @@
 using Sandbox.Game.Entities;
 using Sandbox.ModAPI;
+using System;
 using System.Collections.Generic;
 using VRage.Game;
 using VRage.Game.Components;
@@ -20,7 +21,6 @@ namespace RelativeTopSpeed
         private readonly MyObjectBuilderType thrustType = MyObjectBuilderType.ParseBackwardsCompatible("Thrust");
         private readonly MyObjectBuilderType cockpitType = MyObjectBuilderType.ParseBackwardsCompatible("Cockpit");
         private int refreshCountdown;
-        private int hudCountdown;
 
         private void AddGrid(IMyEntity entity)
         {
@@ -109,11 +109,8 @@ namespace RelativeTopSpeed
                     else UpdateGrid(activeGrids[i]);
                 }
             }
-            if (hudCountdown-- <= 0)
-            {
-                UpdateHud();
-                hudCountdown = 9;
-            }
+
+            UpdateHud();
         }
 
         private void UpdateGrid(MyCubeGrid grid)
@@ -149,12 +146,14 @@ namespace RelativeTopSpeed
 
         private void UpdateHud()
         {
-            settingsMenu?.SetHudText(null);
-            if ((!showHud && !Settings.Debug) || MyAPIGateway.Utilities.IsDedicated) return;
-            var player = MyAPIGateway.Session?.LocalHumanPlayer;
-            if (Settings.Debug && player != null && IsAllowedSpecialOperations(player.SteamUserId))
-                MyAPIGateway.Utilities.ShowNotification($"Grids - Tracked: {grids.Count}  Active: {activeGrids.Count}", 200);
+            if (lastHudToggle != showHud)
+            {
+                settingsMenu?.SetHudText(null);
+                lastHudToggle = showHud;
+            }
+
             if (!showHud) return;
+            var player = MyAPIGateway.Session?.LocalHumanPlayer;
             var controlled = player?.Controller?.ControlledEntity as IMyCubeBlock;
             var grid = controlled?.CubeGrid;
             if (grid?.Physics == null) return;
@@ -162,7 +161,7 @@ namespace RelativeTopSpeed
             float cruise = GetEffectiveCruiseSpeed(grid);
             string text = $"RTS Mass: {mass:n0} kg   Cruise: {cruise:n2} m/s";
             if (settingsMenu == null || !settingsMenu.SetHudText(text))
-                MyAPIGateway.Utilities.ShowNotification(text, 200);
+                MyAPIGateway.Utilities.ShowNotification(text, 1);
         }
     }
 }

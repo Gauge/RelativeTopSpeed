@@ -9,7 +9,6 @@ namespace RelativeTopSpeed
     public partial class Settings
     {
         public static Settings Instance;
-        public static bool Debug = false;
         public const string Filename = "RelativeTopSpeed.cfg";
         // Increment when changing the configuration schema or default behavior.
         public const int CurrentVersion = 2;

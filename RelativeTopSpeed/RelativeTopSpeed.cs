@@ -20,6 +20,7 @@ namespace RelativeTopSpeed
         public static event Action<Settings> SettingsChanged;
         private NetworkAPI Network { get { return NetworkAPI.Instance; } }
         private bool showHud;
+        private bool lastHudToggle = false;
         private string pendingConfigurationNotice;
         private RtsSettingsMenu settingsMenu;
 

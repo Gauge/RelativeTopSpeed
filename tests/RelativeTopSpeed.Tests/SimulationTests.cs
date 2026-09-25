@@ -148,17 +148,7 @@ namespace RelativeTopSpeed.Tests
             Frames(180); int forces = grid.Physics.ForceCount;
             grid.BlocksCounters[type] = 0; Frames(180); Assert.Equal(forces, grid.Physics.ForceCount);
         }
-        [Fact] public void DebugStatisticsRemainAvailableWithoutShipHud()
-        {
-            Start(Unfiltered());
-            Settings.Debug = true;
-            try
-            {
-                Frames(1);
-                Assert.Contains(Game.Utilities.Notifications, text => text.Contains("Tracked:"));
-            }
-            finally { Settings.Debug = false; }
-        }
+
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
