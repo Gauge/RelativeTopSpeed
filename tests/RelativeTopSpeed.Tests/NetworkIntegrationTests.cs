@@ -10,7 +10,7 @@ namespace RelativeTopSpeed.Tests
         private void Receive(Command command)
         {
             command.Timestamp = DateTime.UtcNow.Ticks;
-            Game.Multiplayer.Deliver(16341, Game.Utilities.SerializeToBinary(command));
+            Game.Multiplayer.DeliverSecure(16341, Game.Utilities.SerializeToBinary(command), command.SteamId, !Game.Multiplayer.IsServer);
         }
 
         [Fact]
@@ -63,10 +63,9 @@ namespace RelativeTopSpeed.Tests
         [Theory]
         [InlineData(MyPromoteLevel.None, 140)]
         [InlineData(MyPromoteLevel.Admin, 600)]
-        public void ReloadChecksPromotionOfUpstreamSuppliedId(MyPromoteLevel promotion, float expected)
+        public void ReloadChecksPromotionOfTransportSender(MyPromoteLevel promotion, float expected)
         {
-            // Upstream supplies a claimed ID, not a transport-authenticated one.
-            // Its SenderIdentityTests cover this limitation explicitly.
+            // The secure handler receives the sender independently from the serialized packet.
             Start();
             var settings = Settings.CreateDefault(); settings.SpeedLimit = 600;
             Game.Utilities.World[Settings.Filename] = settings.ToString();

@@ -57,7 +57,7 @@ namespace RelativeTopSpeed
             if (thrust && cockpit) return true;
 
             groupBuffer.Clear();
-            MyAPIGateway.GridGroups.GetGroup(grid, GridLinkTypeEnum.Mechanical, groupBuffer);
+            MyAPIGateway.GridGroups.GetGroup(grid, settings.EnableGridGroups ? GridLinkTypeEnum.Physical : GridLinkTypeEnum.Mechanical, groupBuffer);
             foreach (var member in groupBuffer)
             {
                 var sub = member as MyCubeGrid;
@@ -100,7 +100,15 @@ namespace RelativeTopSpeed
                 }
                 refreshCountdown = RefreshFrames - 1;
             }
-            for (int i = 0; i < activeGrids.Count; i++) UpdateGrid(activeGrids[i]);
+            if (MyAPIGateway.Multiplayer.IsServer)
+            {
+                handledGroupGrids.Clear();
+                for (int i = 0; i < activeGrids.Count; i++)
+                {
+                    if (cfg.Value.EnableGridGroups) UpdatePhysicalGroup(activeGrids[i]);
+                    else UpdateGrid(activeGrids[i]);
+                }
+            }
             if (hudCountdown-- <= 0)
             {
                 UpdateHud();
@@ -141,6 +149,7 @@ namespace RelativeTopSpeed
 
         private void UpdateHud()
         {
+            settingsMenu?.SetHudText(null);
             if ((!showHud && !Settings.Debug) || MyAPIGateway.Utilities.IsDedicated) return;
             var player = MyAPIGateway.Session?.LocalHumanPlayer;
             if (Settings.Debug && player != null && IsAllowedSpecialOperations(player.SteamUserId))
@@ -149,10 +158,11 @@ namespace RelativeTopSpeed
             var controlled = player?.Controller?.ControlledEntity as IMyCubeBlock;
             var grid = controlled?.CubeGrid;
             if (grid?.Physics == null) return;
-            float mass = grid.Physics.Mass;
-            float cruise = GetCruiseSpeed(mass, grid.GridSizeEnum == MyCubeSize.Large);
-            MyAPIGateway.Utilities.ShowNotification(
-                $"Mass: {mass:n0}   Cruise: {cruise:n2}   Max Boost: {GetMaximumBoost(grid):n2}", 200);
+            float mass = GetEffectiveMass(grid);
+            float cruise = GetEffectiveCruiseSpeed(grid);
+            string text = $"RTS Mass: {mass:n0} kg   Cruise: {cruise:n2} m/s";
+            if (settingsMenu == null || !settingsMenu.SetHudText(text))
+                MyAPIGateway.Utilities.ShowNotification(text, 200);
         }
     }
 }

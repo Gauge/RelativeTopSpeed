@@ -16,7 +16,6 @@ namespace RelativeTopSpeed
             MyDefinitionManager.Static.EnvironmentDefinition.LargeShipMaxSpeed = SpeedLimit;
             MyDefinitionManager.Static.EnvironmentDefinition.SmallShipMaxSpeed = SpeedLimit;
 
-
             // parachute deploy hight code is taken directly from midspaces configurable speed mod. All credit goes to them.
             DictionaryReader<string, MyDropContainerDefinition> dropContainers = MyDefinitionManager.Static.GetDropContainerDefinitions();
             foreach (var kvp in dropContainers)
@@ -77,7 +76,12 @@ namespace RelativeTopSpeed
 
         public static void Save(Settings settings)
         {
-            if (!MyAPIGateway.Session.IsServer) return;
+            TrySave(settings);
+        }
+
+        public static bool TrySave(Settings settings)
+        {
+            if (!MyAPIGateway.Session.IsServer) return false;
             try
             {
                 string xml = MyAPIGateway.Utilities.SerializeToXML(settings);
@@ -88,10 +92,12 @@ namespace RelativeTopSpeed
                 }
                 using (var writer = MyAPIGateway.Utilities.WriteFileInWorldStorage(Filename, typeof(Settings)))
                     writer.Write(xml);
+                return true;
             }
             catch (Exception error)
             {
                 MyLog.Default.Error("[RelativeTopSpeed] Failed to save settings. " + error);
+                return false;
             }
         }
     }

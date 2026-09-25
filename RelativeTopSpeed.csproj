@@ -3,13 +3,13 @@
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
     <Platforms>x64</Platforms>
+    <MdkInteractive>no</MdkInteractive>
     <LangVersion>6</LangVersion>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GenerateNeutralResourcesLanguageAttribute>false</GenerateNeutralResourcesLanguageAttribute>
     <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     <NuGetAudit>false</NuGetAudit>
-    <ApiGeneratorPython Condition="'$(ApiGeneratorPython)' == ''">python3</ApiGeneratorPython>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Mal.Mdk2.ModAnalyzers" Version="2.1.16" PrivateAssets="all" />
@@ -19,7 +19,4 @@
     <Compile Include="RelativeTopSpeed/**/*.cs" Exclude="RelativeTopSpeed/bin/**/*.cs;RelativeTopSpeed/obj/**/*.cs" />
     <AdditionalFiles Include="modinfo.sbmi" />
   </ItemGroup>
-  <Target Name="GenerateModApi" BeforeTargets="BeforeBuild" Condition="'$(DesignTimeBuild)' != 'true'">
-    <Exec Command="&quot;$(ApiGeneratorPython)&quot; &quot;$(MSBuildProjectDirectory)/tools/api/generate.py&quot;" />
-  </Target>
 </Project>

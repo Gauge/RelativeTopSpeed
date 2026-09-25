@@ -2,6 +2,16 @@
 
 Space Engineers mod that derives ship cruise speeds from mass, optionally allowing thrust-dependent boosting above cruise speed.
 
+Optional **Rich HUD Master** support adds **F2 → Relative Top Speed → Settings**
+(and `/rts menu`) for live, server-authorized configuration and a speed HUD. It is
+not a required dependency. See [live configuration](docs/live-configuration.md).
+
+For use alongside Thermal Dynamics, RTS supports combined physical-group mass.
+Speed control is always on while the mod is loaded. See the [settings mapping and API guide](docs/thermal-dynamics.md).
+Thermal Dynamics itself is unchanged; disable its embedded `EnableTopSpeed` when
+RTS owns speed control.
+
+
 ## Build and test
 
 The source files live under `RelativeTopSpeed` and MDK2 packages them into `Data/Scripts/RelativeTopSpeed` when loading the mod. This repository is configured as an MDK2 mod project: a build validates the sources against the installed game assemblies and the MDK whitelist, then packages the playable mod into the configured MDK2 mod-output directory. It targets .NET Framework 4.8 with C# 6.
@@ -51,7 +61,7 @@ New configs use a list of mass/speed points for each grid size:
 </LargeGrid>
 ```
 
-Place this inside `<Settings>` alongside `<Version>1</Version>`. `<SmallGrid>` uses the same format, with its own points. [Complete example config](examples/RelativeTopSpeed.cfg) includes both curves and a 600 m/s world limit.
+Place this inside `<Settings>` alongside `<Version>2</Version>`. `<SmallGrid>` uses the same format, with its own points. [Complete example config](tests/RelativeTopSpeed.Tests/Example.cfg) includes both curves and a 600 m/s world limit.
 
 - Use **two or more points**, with no fixed maximum count. Mass is in kg; speed is in m/s.
 - Points are sorted by mass on load and interpolated linearly. Equal speeds create plateaus; rising or falling segments are supported.
@@ -62,11 +72,11 @@ Place this inside `<Settings>` alongside `<Version>1</Version>`. `<SmallGrid>` u
 
 ### Configuration version
 
-The root `<Settings>` includes `<Version>1</Version>`. `Settings.CurrentVersion` is the schema version; increment it when a release needs administrators to review their configuration. Both grid groups are required and contain `MaxBoostSpeed`, `ResistanceMultiplier` and `CruiseCurve`. The flat settings and Hermite curves have been removed.
+The root `<Settings>` includes `<Version>2</Version>`. `Settings.CurrentVersion` is the schema version; increment it when a release needs administrators to review their configuration. Both grid groups are required and contain `MaxBoostSpeed`, `ResistanceMultiplier` and `CruiseCurve`. The flat settings and Hermite curves have been removed.
 
 If the version is missing or differs from the current version, the mod uses fresh defaults and **preserves the original file**. It logs the mismatch and announces in chat that defaults remain active until the configuration is updated. The notice is also sent to multiplayer clients, including players joining later, and waits until a local player is available before appearing.
 
-Update the file to the current format shown in the [complete example](examples/RelativeTopSpeed.cfg), set `<Version>1</Version>`, then run `/rts load`. Changing the version alone does not migrate flat settings. Server and clients should run the same mod version.
+Update the file to the current format shown in the [complete example](tests/RelativeTopSpeed.Tests/Example.cfg), set `<Version>2</Version>`, then run `/rts load`. Changing the version alone does not migrate flat settings. Server and clients should run the same mod version.
 
 New files contain the current version and default point curves. Malformed current-version files are preserved for correction; failed reloads retain the active settings, while invalid startup files use defaults and log the reason.
 
@@ -90,17 +100,30 @@ Build the project, then replace the packaged mod folder's `Data/Scripts/Relative
 
 The refactor changes several observable behaviors: local reloads notify subscribers; API speed estimates use the same physics mass as enforcement and respect boost caps; non-boosted coasting ships are capped; delayed-physics grids are tracked; private multiplayer sessions synchronize settings; and remote reload permission checks the sender ID supplied by SENetworkAPI. Networking and API handlers are detached when the session ends.
 
-## Cross-mod API generation
+## Cross-mod API
 
-The cross-mod delegate API is generated from [`api/rts.json`](api/rts.json).
-See the [generator workflow](api/README.md) for changing the contract, regenerating
-the consumer/backend, and checking compatibility. Production builds require
-Python 3 for generation; consumers still copy only `RtsApi.cs`.
+Other mods copy [`RelativeTopSpeed/RtsApi.cs`](RelativeTopSpeed/RtsApi.cs) into their
+project, call `Load()` during session load and `Unload()` when unloading, then use
+its methods once `IsReady` is true. RTS publishes its methods from
+[`RtsApiBackend.cs`](RelativeTopSpeed/RtsApiBackend.cs) on channel 2772681332. To add
+an endpoint, add the provider method, register it in `RtsApiBackend`, and add the
+matching delegate and wrapper to `RtsApi`.
 
 ## SENetworkAPI dependency
 
-The bundled dependency is an unchanged copy of [Gauge/SENetworkAPI](https://github.com/Gauge/SENetworkAPI) 2.0.0 at commit `3a83159f63cad90916df351e801c2b8e17031544`, with its MIT license. Its upstream C# test suite is included under `tests/RelativeTopSpeed.Tests/Upstream`. See [source provenance](RelativeTopSpeed/SENetworkAPI/UPSTREAM.md).
+The current bundled [Gauge/SENetworkAPI](https://github.com/Gauge/SENetworkAPI)
+source uses secure message handlers and enforces property transfer direction.
+Its session component owns cleanup on world unload. The live configuration handler
+checks the authenticated sender's promotion before applying a request.
 
-Upstream uses legacy message handlers: sender IDs are claimed by the packet, and property transfer direction is not enforced on receipt. The remote reload promotion check is therefore not a reliable authorization boundary against modified clients, and settings packets inherit the same trust limitation. These are documented [upstream limitations](https://github.com/Gauge/SENetworkAPI/blob/3a83159f63cad90916df351e801c2b8e17031544/docs/known-issues.md), covered by its sender-identity tests. Upstream also expects a single space between `/rts` and its command.
+The older imported tests under `tests/RelativeTopSpeed.Tests/Upstream` have not
+been migrated to that networking revision and currently include failing legacy
+expectations. See [current validation](docs/validation.md). This task does not
+modify the networking dependency or those imported tests.
 
-When updating this dependency, replace its six C# files and license together, preserve their exact contents, and rerun the upstream and mod integration suites.
+## Rich HUD client
+
+The optional integration embeds the MIT-licensed client snapshot already used by
+Thermal Dynamics. Its [provenance and hashes](RelativeTopSpeed/RichHudFramework/UPSTREAM.md)
+are included alongside the original licenses. Rich HUD Master supplies the actual
+F2 UI when installed; the mod remains fully usable without it.

@@ -12,32 +12,33 @@ namespace RelativeTopSpeed
         public static bool Debug = false;
         public const string Filename = "RelativeTopSpeed.cfg";
         // Increment when changing the configuration schema or default behavior.
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
         public static readonly Settings Default = CreateDefault();
 
         // Leave deserialized Version at zero when absent so old files reset.
-        [ProtoMember(25)]
-        public int Version { get; set; }
         [ProtoMember(1)]
-        public bool EnableBoosting { get; set; }
+        public int Version { get; set; }
         [ProtoMember(2)]
-        public bool IgnoreGridsWithoutThrust { get; set; }
+        public bool EnableBoosting { get; set; }
         [ProtoMember(3)]
-        public bool IgnoreGridsWithoutCockpit { get; set; }
+        public bool EnableGridGroups { get; set; }
         [ProtoMember(4)]
-        public float ParachuteDeployHeight { get; set; }
+        public bool IgnoreGridsWithoutThrust { get; set; }
         [ProtoMember(5)]
-        public float SpeedLimit { get; set; }
+        public bool IgnoreGridsWithoutCockpit { get; set; }
         [ProtoMember(6)]
+        public float ParachuteDeployHeight { get; set; }
+        [ProtoMember(7)]
+        public float SpeedLimit { get; set; }
+        [ProtoMember(8)]
         public float RemoteControlSpeedLimit { get; set; }
-        // Tags 7–22 belonged to removed flat settings; do not reuse them.
-        [ProtoMember(23)]
+
+        [ProtoMember(30)]
         public GridSpeedSettings LargeGrid { get; set; }
-        [ProtoMember(24)]
+        [ProtoMember(40)]
         public GridSpeedSettings SmallGrid { get; set; }
 
-        // Runtime status travels to clients (including late joiners), but is not saved.
-        [ProtoMember(26), XmlIgnore]
+        [ProtoMember(50), XmlIgnore]
         public string ConfigurationNotice { get; set; }
 
         public static Settings CreateDefault()
@@ -46,6 +47,7 @@ namespace RelativeTopSpeed
             {
                 Version = CurrentVersion,
                 EnableBoosting = true,
+                EnableGridGroups = true,
                 IgnoreGridsWithoutThrust = true,
                 IgnoreGridsWithoutCockpit = false,
                 ParachuteDeployHeight = 400,

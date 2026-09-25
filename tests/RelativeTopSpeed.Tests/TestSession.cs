@@ -15,6 +15,7 @@ namespace RelativeTopSpeed.Tests
     {
         protected readonly FakeGame Game = FakeGame.StartServer();
         protected Mod Mod;
+        protected TestSession() { RichHudFramework.Client.RichHudClient.Clear(); }
         protected Mod Start(Settings settings = null)
         {
             if (settings != null) Game.Utilities.World[Settings.Filename] = Game.Utilities.SerializeToXML(settings);
@@ -41,6 +42,9 @@ namespace RelativeTopSpeed.Tests
         public void Dispose()
         {
             Mod?.SimulateUnload();
+            // The current network dependency owns cleanup in its session component.
+            new SessionTools().SimulateUnload();
+            RichHudFramework.Client.RichHudClient.Clear();
             RtsApiBackend.Close();
             Settings.Instance = null;
             Game.Dispose();

@@ -30,6 +30,7 @@ namespace RelativeTopSpeed.Tests
             Assert.Equal(400, settings.LargeGrid.MaxBoostSpeed);
             Assert.Equal(500, settings.SmallGrid.MaxBoostSpeed);
             Assert.Equal(600, settings.SpeedLimit);
+            Assert.True(settings.EnableGridGroups);
         }
 
         [Theory]
@@ -215,7 +216,7 @@ namespace RelativeTopSpeed.Tests
             }};
             var player = Game.Session.LocalHumanPlayer;
             Game.Session.LocalHumanPlayer = null;
-            Game.Multiplayer.Deliver(16341, Game.Utilities.SerializeToBinary(packet));
+            Game.Multiplayer.DeliverSecure(16341, Game.Utilities.SerializeToBinary(packet), 999, true);
             Frames(2);
             Assert.DoesNotContain(Game.ShownMessages, m => m.Text.Contains("Using defaults until"));
             Game.Session.LocalHumanPlayer = player; Frames(2);
@@ -235,7 +236,7 @@ namespace RelativeTopSpeed.Tests
                     Id = Mod.cfg.Id, SyncType = SyncType.Post,
                     Data = Game.Utilities.SerializeToBinary(value)
                 }};
-                Game.Multiplayer.Deliver(16341, Game.Utilities.SerializeToBinary(packet));
+                Game.Multiplayer.DeliverSecure(16341, Game.Utilities.SerializeToBinary(packet), 999, true);
             }
             Receive(settings);
             Assert.Equal(170, Mod.GetCruiseSpeed(150, true));

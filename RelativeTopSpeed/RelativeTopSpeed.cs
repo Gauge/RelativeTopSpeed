@@ -21,6 +21,7 @@ namespace RelativeTopSpeed
         private NetworkAPI Network { get { return NetworkAPI.Instance; } }
         private bool showHud;
         private string pendingConfigurationNotice;
+        private RtsSettingsMenu settingsMenu;
 
         public override void Init(MyObjectBuilder_SessionComponent sessionComponent)
         {
@@ -34,15 +35,22 @@ namespace RelativeTopSpeed
             Network.RegisterChatCommand("help", Chat_Help);
             Network.RegisterChatCommand("hud", Chat_Hud);
             Network.RegisterChatCommand("config", Chat_Config);
+            Network.RegisterChatCommand("menu", args => settingsMenu?.Open());
             if (MyAPIGateway.Multiplayer.IsServer)
             {
                 Network.RegisterNetworkCommand("load", ServerCallback_Load);
+                Network.RegisterNetworkCommand("settings", ServerCallback_Settings);
                 Network.RegisterChatCommand("load", args => { cfg.Value = Settings.Load(cfg.Value); });
             }
             else Network.RegisterChatCommand("load", args => Network.SendCommand("load"));
             MyAPIGateway.Entities.OnEntityAdd += AddGrid;
             MyAPIGateway.Entities.OnEntityRemove += RemoveGrid;
             MyLog.Default.Info("[RelativeTopSpeed] Starting.");
+            if (!MyAPIGateway.Utilities.IsDedicated)
+            {
+                settingsMenu = new RtsSettingsMenu(this);
+                settingsMenu.Load();
+            }
         }
 
         public override void BeforeStart()
@@ -83,6 +91,8 @@ namespace RelativeTopSpeed
 
         protected override void UnloadData()
         {
+            settingsMenu?.Close();
+            settingsMenu = null;
             MyAPIGateway.Entities.OnEntityAdd -= AddGrid;
             MyAPIGateway.Entities.OnEntityRemove -= RemoveGrid;
             foreach (var grid in grids) grid.OnStaticChanged -= OnStaticChanged;
@@ -90,6 +100,9 @@ namespace RelativeTopSpeed
             activeGrids.Clear();
             groupBuffer.Clear();
             activationCache.Clear();
+            physicalGroup.Clear();
+            handledBodies.Clear();
+            handledGroupGrids.Clear();
             if (cfg != null)
             {
                 cfg.ValueChanged -= SettingChanged;

@@ -10,7 +10,7 @@ namespace RelativeTopSpeed
 
         private void Chat_Help(string arguments)
         {
-            MyAPIGateway.Utilities.ShowMessage(Network.ModName, "Relative Top Speed\nHUD: displays ship stats when in cockpit\nCONFIG: Displays the current config\nLOAD: load world configuration");
+            MyAPIGateway.Utilities.ShowMessage(Network.ModName, "Relative Top Speed\nHUD: displays ship stats when in cockpit\nMENU: opens the settings window (needs Rich HUD Master)\nCONFIG: Displays the current config\nLOAD: load world configuration");
         }
 
         private void Chat_Hud(string arguments)

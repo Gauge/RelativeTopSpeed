@@ -77,7 +77,7 @@ namespace RelativeTopSpeed.Tests
             Assert.Equal(xml, Game.Utilities.SerializeToXML(Game.Utilities.SerializeFromXML<Settings>(xml)));
             var binary = Game.Utilities.SerializeToBinary(s);
             Assert.Equal(xml, Game.Utilities.SerializeToXML(Game.Utilities.SerializeFromBinary<Settings>(binary)));
-            Assert.Equal(new[] { 1, 2, 3, 4, 5, 6, 23, 24, 25, 26 }, typeof(Settings).GetProperties().Select(p => p.GetCustomAttribute<ProtoMemberAttribute>().Tag).OrderBy(x => x));
+            Assert.Equal(new[] { 1, 2, 3, 4, 5, 6, 23, 24, 25, 26, 27, 28 }, typeof(Settings).GetProperties().Select(p => p.GetCustomAttribute<ProtoMemberAttribute>().Tag).OrderBy(x => x));
         }
         [Theory]
         [InlineData(null, false)] [InlineData("0", false)]

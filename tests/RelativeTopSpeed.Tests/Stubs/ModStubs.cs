@@ -90,12 +90,14 @@ namespace VRage.Game.Components
 }
 namespace VRage.Game.ModAPI
 {
-    public enum GridLinkTypeEnum { Mechanical }
+    public enum GridLinkTypeEnum { Mechanical, Physical }
     public enum MyPromoteLevel { None, Scripter, Moderator, SpaceMaster, Admin, Owner }
     public interface IMyCubeGrid : IMyEntity
     {
         VRage.Game.Components.FakePhysics Physics { get; }
         VRage.Game.MyCubeSize GridSizeEnum { get; }
+        bool IsStatic { get; }
+        bool Closed { get; }
     }
     public interface IMyCubeBlock { IMyCubeGrid CubeGrid { get; } }
     public interface IMySlimBlock { object FatBlock { get; } }

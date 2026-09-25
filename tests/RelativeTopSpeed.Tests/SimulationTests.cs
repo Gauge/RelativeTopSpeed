@@ -103,8 +103,8 @@ namespace RelativeTopSpeed.Tests
         [Fact]
         public void CleanupAllowsANewSessionWithPropertyIdOne()
         {
-            Start(Unfiltered()); var grid = Grid(); var first = Mod.cfg.Id; Mod.SimulateUnload(); Mod = null;
-            Assert.Equal(0, grid.StaticSubscribers); Assert.Equal(0, Game.Multiplayer.HandlerCount(16341));
+            Start(Unfiltered()); var grid = Grid(); var first = Mod.cfg.Id; Mod.SimulateUnload(); new SessionTools().SimulateUnload(); Mod = null;
+            Assert.Equal(0, grid.StaticSubscribers); Assert.False(Game.Multiplayer.Secure.ContainsKey(16341));
             Assert.Equal(0, Game.Utilities.MessageEnteredSubscriberCount);
             Start(Unfiltered()); Assert.Equal(first, Mod.cfg.Id); Assert.Equal(1, Mod.cfg.Id);
         }
