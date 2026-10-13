@@ -318,6 +318,7 @@ namespace VRage.Game.Components
         public virtual void Init(MyObjectBuilder_SessionComponent sessionComponent) { }
         public virtual void LoadData() { }
         public virtual void BeforeStart() { }
+        public virtual void UpdateBeforeSimulation() { }
         public virtual void Simulate() { }
         protected virtual void UnloadData() { }
 

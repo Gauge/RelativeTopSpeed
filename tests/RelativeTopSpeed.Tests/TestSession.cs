@@ -38,7 +38,7 @@ namespace RelativeTopSpeed.Tests
             settings.EnableBoosting = boost;
             return settings;
         }
-        protected void Frames(int count) { for (int i = 0; i < count; i++) { Mod.Simulate(); Game.NextFrame(); } }
+        protected void Frames(int count) { for (int i = 0; i < count; i++) { Mod.UpdateBeforeSimulation(); Mod.Simulate(); Game.NextFrame(); } }
         public void Dispose()
         {
             Mod?.SimulateUnload();

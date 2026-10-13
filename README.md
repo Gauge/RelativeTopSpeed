@@ -88,6 +88,7 @@ New files contain the current version and default point curves. Malformed curren
 | `GridSpeedSettings.cs`, `SpeedMath.cs` | Mass interpolation, drag, excess-speed and acceleration calculations |
 | `RelativeTopSpeed.cs` | Session initialization, settings propagation and cleanup |
 | `RelativeTopSpeed.Simulation.cs` | Grid tracking, force application and HUD |
+| `RelativeTopSpeed.Characters.cs` | Character speed-cache refresh after live limit changes |
 | `RelativeTopSpeed.Api.cs`, `RelativeTopSpeed.Commands.cs` | Ship queries and chat commands |
 | `RtsApi.cs`, `RtsApiBackend.cs`, `RemoteControl.cs` | Mod API discovery and remote-control integration |
 | `SENetworkAPI` | Packet dispatch, serialization, commands and property synchronization |
@@ -97,6 +98,12 @@ New files contain the current version and default point curves. Malformed curren
 To upload to the existing Workshop item **1359618037**, follow [publishing instructions](docs/publishing.md). MDK2 includes the required root `modinfo.sbmi` in each packaged mod folder.
 
 Build the project, then replace the packaged mod folder's `Data/Scripts/RelativeTopSpeed` directory, including the new files, and restart the world. Update the server and clients together. The public delegate names, API channel, network channel and serialized field numbers remain unchanged.
+
+RTS includes the validated server configuration in SE's initial world data. Joining clients apply it before character physics caches its speed limit. The server's configuration file remains authoritative after a restart; no extra world save is required before players join.
+
+Changing `SpeedLimit` through the settings menu or `/rts load` also refreshes existing character physics before simulation. RTS preserves linear and angular velocity, restores movement and jetpack settings, and defers seated or ladder-using characters until they are back on foot. The server refreshes characters; each client refreshes its own character. Successful refreshes are logged without chat notifications. Failures are logged as `Character speed refresh failed` in `SpaceEngineers.log` and reported to the affected local player.
+
+The refresh uses SE's internal physics rebuild through a temporary crouch-mode transition with a missing physics proxy. Regression tests cover scheduling and state restoration using game stubs; collision behavior and multiplayer prediction still require in-game testing after engine updates.
 
 The refactor changes several observable behaviors: local reloads notify subscribers; API speed estimates use the same physics mass as enforcement and respect boost caps; non-boosted coasting ships are capped; delayed-physics grids are tracked; private multiplayer sessions synchronize settings; and remote reload permission checks the sender ID supplied by SENetworkAPI. Networking and API handlers are detached when the session ends.
 

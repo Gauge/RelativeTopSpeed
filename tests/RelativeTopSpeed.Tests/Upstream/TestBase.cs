@@ -49,6 +49,8 @@ namespace SENetworkAPI.Tests
 			NetworkAPI.Instance = null;
 			NetworkAPI.LogNetworkTraffic = false;
 			NetworkAPI.CompressionThreshold = 1024;
+			NetworkAPI.UseCompactBatches = false;
+			NetworkAPI.CompactBatchThreshold = 256;
 			// The production reset, so the suite exercises it and cannot drift
 			// from it (it also clears the pending coalesced batch).
 			NetSync.ClearRegistries();
@@ -238,7 +240,13 @@ namespace SENetworkAPI.Tests
 		}
 
 		/// <summary>Pushes raw bytes into the mod's registered message handler.</summary>
-		protected void Receive(byte[] packet) => Game.Multiplayer.Deliver(ComId, packet);
+		protected void Receive(byte[] packet, ulong? sender = null, bool? fromServer = null)
+		{
+			// Transport identity is independent of the untrusted packet envelope.
+			Game.Multiplayer.DeliverSecure(ComId, packet,
+				sender ?? (Game.Multiplayer.IsServer ? ClientId : HostId),
+				fromServer ?? !Game.Multiplayer.IsServer);
+		}
 
 		// -------------------------------------------------------------------
 		//  Log helpers

@@ -72,6 +72,9 @@ namespace VRage.Game.Components
     public enum MyPhysicsForceType { APPLY_WORLD_FORCE, APPLY_WORLD_IMPULSE_AND_WORLD_ANGULAR_IMPULSE }
     public class FakePhysics
     {
+        public bool Enabled = true, IsStatic, Closed;
+        public Vector3 AngularVelocity;
+        public void Close() { Closed = true; LinearVelocity = Vector3.Zero; AngularVelocity = Vector3.Zero; }
         public float Mass = 10000;
         public Vector3 LinearVelocity, LinearAcceleration;
         public Vector3D CenterOfMassWorld;
@@ -105,6 +108,9 @@ namespace VRage.Game.ModAPI
     public partial interface IMySession { MyPromoteLevel GetUserPromoteLevel(ulong id); }
     public partial interface IMyUtilities
     {
+        void SetVariable<T>(string name, T value);
+        bool GetVariable<T>(string name, out T value);
+        bool RemoveVariable(string name);
         string SerializeToXML<T>(T value);
         T SerializeFromXML<T>(string value);
         bool FileExistsInWorldStorage(string file, Type type);
@@ -176,8 +182,16 @@ namespace SEStubs
     public partial class FakeMultiplayer
     {
         public Dictionary<ushort, Action<ushort, byte[], ulong, bool>> Secure = new Dictionary<ushort, Action<ushort, byte[], ulong, bool>>();
+        public int SecureHandlerCount(ushort channel) => Secure.TryGetValue(channel, out var handlers) ? handlers.GetInvocationList().Length : 0;
         public void DeliverSecure(ushort channel, byte[] data, ulong sender, bool fromServer)
-        { if (Secure.TryGetValue(channel, out var handler)) handler(channel, data, sender, fromServer); }
+        {
+            if (!Secure.TryGetValue(channel, out var handlers)) return;
+            if (_loopbackDepth >= MaxLoopbackDepth)
+                throw new InvalidOperationException("Secure loopback depth exceeded: packets keep echoing to the sender.");
+            _loopbackDepth++;
+            try { handlers(channel, data, sender, fromServer); }
+            finally { _loopbackDepth--; }
+        }
     }
     public class FakeGridGroups
     {
@@ -193,6 +207,15 @@ namespace SEStubs
     }
     public partial class FakeUtilities
     {
+        public readonly Dictionary<string, object> Variables = new Dictionary<string, object>();
+        public void SetVariable<T>(string name, T value) { Variables[name] = value; }
+        public bool GetVariable<T>(string name, out T value)
+        {
+            if (Variables.TryGetValue(name, out var stored) && stored is T typed)
+            { value = typed; return true; }
+            value = default(T); return false;
+        }
+        public bool RemoveVariable(string name) => Variables.Remove(name);
         public Dictionary<string, string> World = new Dictionary<string, string>(), Local = new Dictionary<string, string>();
         public bool FailWrite;
         public string SerializeToXML<T>(T value) { using var writer = new StringWriter(); new XmlSerializer(typeof(T)).Serialize(writer, value); return writer.ToString(); }

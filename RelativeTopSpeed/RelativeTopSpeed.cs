@@ -10,7 +10,7 @@ using VRage.Utils;
 
 namespace RelativeTopSpeed
 {
-    [MySessionComponentDescriptor(MyUpdateOrder.Simulation, 999)]
+    [MySessionComponentDescriptor(MyUpdateOrder.BeforeSimulation | MyUpdateOrder.Simulation, 999)]
     public partial class RelativeTopSpeed : MySessionComponentBase
     {
         private const ushort ComId = 16341;
@@ -85,6 +85,11 @@ namespace RelativeTopSpeed
             }
             pendingConfigurationNotice = next.ConfigurationNotice;
             next.CalculateCurve();
+            CharacterSpeedLimitChanged(next.SpeedLimit);
+            // Script variables travel in the initial world checkpoint, before
+            // joining clients create character physics and cache its speed cap.
+            if (MyAPIGateway.Multiplayer.IsServer)
+                MyAPIGateway.Utilities.SetVariable(Settings.StartupSettingsKey, next.ToString());
             Settings.Instance = next;
             refreshCountdown = 0;
             SettingsChanged?.Invoke(next);
@@ -104,6 +109,12 @@ namespace RelativeTopSpeed
             physicalGroup.Clear();
             handledBodies.Clear();
             handledGroupGrids.Clear();
+            pendingCharacterRefresh.Clear();
+            characterScan.Clear();
+            characterPlayers.Clear();
+            scanCharacterSpeeds = false;
+            characterSpeedLimit = null;
+            MyAPIGateway.Utilities.RemoveVariable(Settings.StartupSettingsKey);
             if (cfg != null)
             {
                 cfg.ValueChanged -= SettingChanged;

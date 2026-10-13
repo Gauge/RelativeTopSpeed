@@ -11,6 +11,8 @@ namespace RelativeTopSpeed
 {
     public partial class Settings
     {
+        internal const string StartupSettingsKey = "RelativeTopSpeed.StartupSettings";
+
         public void CalculateCurve()
         {
             MyDefinitionManager.Static.EnvironmentDefinition.LargeShipMaxSpeed = SpeedLimit;
@@ -44,7 +46,7 @@ namespace RelativeTopSpeed
 
         public static Settings Load(Settings fallback)
         {
-            if (!MyAPIGateway.Multiplayer.IsServer) return CreateDefault();
+            if (!MyAPIGateway.Multiplayer.IsServer) return LoadStartupSettings();
             Settings settings;
             try
             {
@@ -72,6 +74,32 @@ namespace RelativeTopSpeed
                 settings = fallback ?? CreateDefault();
             }
             return settings;
+        }
+
+        private static Settings LoadStartupSettings()
+        {
+            // SE restores Utilities variables from ScriptManagerData before
+            // session Init, whereas NetSync.Fetch completes after initialization.
+            // Do not seed character physics with 140 m/s while awaiting that fetch.
+            string xml;
+            if (MyAPIGateway.Utilities.GetVariable(StartupSettingsKey, out xml))
+            {
+                try
+                {
+                    var settings = MyAPIGateway.Utilities.SerializeFromXML<Settings>(xml);
+                    if (settings != null && settings.Version == CurrentVersion)
+                    {
+                        Validate(ref settings);
+                        return settings;
+                    }
+                }
+                catch (Exception error)
+                {
+                    MyLog.Default.Warning("[RelativeTopSpeed] Could not read startup settings: " + error.Message);
+                }
+            }
+            MyLog.Default.Warning("[RelativeTopSpeed] Startup settings unavailable; using defaults until server synchronization. A fresh character may be needed after synchronization.");
+            return CreateDefault();
         }
 
         public static void Save(Settings settings)

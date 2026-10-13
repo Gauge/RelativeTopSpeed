@@ -66,7 +66,8 @@ namespace SENetworkAPI.Tests
 		{
 			GivenServer();
 
-			Assert.Equal(1, Game.Multiplayer.HandlerCount(ComId));
+			Assert.Equal(1, Game.Multiplayer.SecureHandlerCount(ComId));
+			Assert.Equal(0, Game.Multiplayer.HandlerCount(ComId));
 		}
 
 		[Fact]
@@ -78,7 +79,7 @@ namespace SENetworkAPI.Tests
 			// leave two live handlers behind for its own delegate.
 			new Server(ComId, "SecondMod");
 
-			Assert.Equal(2, Game.Multiplayer.HandlerCount(ComId));
+			Assert.Equal(2, Game.Multiplayer.SecureHandlerCount(ComId));
 		}
 
 		[Fact]
@@ -186,29 +187,36 @@ namespace SENetworkAPI.Tests
 		public void Close_UnregistersMessageAndChatHandlers()
 		{
 			NetworkAPI api = GivenServer("/test");
-			Assert.Equal(0, Game.Multiplayer.HandlerCount(ComId));
+			Assert.Equal(1, Game.Multiplayer.SecureHandlerCount(ComId));
+			Assert.Equal(1, Game.Utilities.MessageEnteredSubscriberCount);
+#pragma warning disable CS0618 // Verify the retained legacy cleanup API.
+			api.Close();
+#pragma warning restore CS0618
+			Assert.Equal(0, Game.Multiplayer.SecureHandlerCount(ComId));
 			Assert.Equal(0, Game.Utilities.MessageEnteredSubscriberCount);
 		}
 
 		[Fact]
-		public void Dispose_ClosesAndClearsTheInstance()
+		public void SessionUnload_ClosesAndClearsTheInstance()
 		{
 			GivenServer("/test");
+			new SessionTools().SimulateUnload();
 			Assert.Null(NetworkAPI.Instance);
 			Assert.False(NetworkAPI.IsInitialized);
-			Assert.Equal(0, Game.Multiplayer.HandlerCount(ComId));
+			Assert.Equal(0, Game.Multiplayer.SecureHandlerCount(ComId));
 		}
 
 		[Fact]
-		public void Dispose_WithoutInit_IsSafe()
+		public void SessionUnload_WithoutInit_IsSafe()
 		{
 			GivenUninitializedClient();
+			new SessionTools().SimulateUnload();
 
 			Assert.Null(NetworkAPI.Instance);
 		}
 
 		[Fact]
-		public void Dispose_ClearsThePropertyRegistries()
+		public void SessionUnload_ClearsThePropertyRegistries()
 		{
 			// These are static and survive a world unload, so without an explicit
 			// clear the next session inherits the previous one's properties.
@@ -216,18 +224,19 @@ namespace SENetworkAPI.Tests
 			MyEntity entity = Game.CreateEntity();
 			new NetSync<int>(entity, TransferType.Both, syncOnLoad: false);
 			new NetSync<int>(new UnloadTestComponent(), TransferType.Both, syncOnLoad: false);
-			
+			new SessionTools().SimulateUnload();
 			Assert.Empty(NetSync.PropertiesByEntity);
 			Assert.Empty(NetSync.PropertyById);
 		}
 
 		[Fact]
-		public void Dispose_ResetsPropertyIdsSoTheNextSessionStartsFromOne()
+		public void SessionUnload_ResetsPropertyIdsSoTheNextSessionStartsFromOne()
 		{
 			GivenServer();
 			new NetSync<int>(new UnloadTestComponent(), TransferType.Both, syncOnLoad: false);
 			new NetSync<int>(new UnloadTestComponent(), TransferType.Both, syncOnLoad: false);
 
+			new SessionTools().SimulateUnload();
 			GivenServer();
 			NetSync<int> first = new NetSync<int>(new UnloadTestComponent(), TransferType.Both, syncOnLoad: false);
 

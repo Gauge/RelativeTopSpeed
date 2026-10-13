@@ -74,10 +74,12 @@ namespace SENetworkAPI.Tests
 			Assert.Equal(new[] { 1, 2, 3 }, updates.Select(u => StubSerializer.Deserialize<int>(u.Data)).ToArray());
 		}
 
-		[Fact]
-		public void EachEntityGetsItsOwnPacket()
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void EntityBatchingRespectsDestination(bool server)
 		{
-			GivenClient();
+			if (server) { GivenServer(); Game.Players.Add(ClientId); } else GivenClient();
 			MyEntity first = Game.CreateEntity();
 			MyEntity second = Game.CreateEntity();
 			NetSync<int> a = Coalesced(first);
@@ -90,17 +92,21 @@ namespace SENetworkAPI.Tests
 			c.Value = 3;
 			Game.NextFrame();
 
-			// Two entities are in two places, so they cannot share a packet
-			// that is limited by distance from one of them.
-			Assert.Equal(2, Game.Sent.Count);
-			Assert.Equal(2, DecodeSyncDataList(Game.Sent[0]).Count);
-			Assert.Single(DecodeSyncDataList(Game.Sent[1]));
+			// Server distance filters need separate destinations; client updates all go to the server.
+			Assert.Equal(server ? 2 : 1, Game.Sent.Count);
+			var updates = Game.Sent.SelectMany(DecodeSyncDataList).ToList();
+			Assert.Equal(3, updates.Count);
+			Assert.Equal(new[] { 1, 2, 3 }, updates.Select(u => StubSerializer.Deserialize<int>(u.Data)).OrderBy(v => v));
+			Assert.Equal(2, updates.Count(u => u.EntityId == first.EntityId));
+			Assert.Single(updates, u => u.EntityId == second.EntityId);
 		}
 
-		[Fact]
-		public void SessionAndEntityPropertiesDoNotShareAPacket()
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void SessionAndEntityPropertiesSharePacketsOnlyOnClients(bool server)
 		{
-			GivenClient();
+			if (server) { GivenServer(); Game.Players.Add(ClientId); } else GivenClient();
 			MyEntity entity = Game.CreateEntity();
 			NetSync<int> onEntity = Coalesced(entity);
 			NetSync<int> onSession = Coalesced();
@@ -110,14 +116,18 @@ namespace SENetworkAPI.Tests
 			onSession.Value = 2;
 			Game.NextFrame();
 
-			Assert.Equal(2, Game.Sent.Count);
+			Assert.Equal(server ? 2 : 1, Game.Sent.Count);
+			Assert.Equal(new[] { 1, 2 }, Game.Sent.SelectMany(DecodeSyncDataList)
+				.Select(u => StubSerializer.Deserialize<int>(u.Data)).OrderBy(v => v));
 		}
 
-		[Fact]
-		public void DistanceLimitedAndUnlimitedPropertiesDoNotShareAPacket()
+		[Theory]
+		[InlineData(false)]
+		[InlineData(true)]
+		public void DistanceLimitedAndUnlimitedPropertiesSharePacketsOnlyOnClients(bool server)
 		{
 			// One goes to everyone, the other only to players near the entity.
-			GivenClient();
+			if (server) { GivenServer(); Game.Players.Add(ClientId); } else GivenClient();
 			MyEntity entity = Game.CreateEntity();
 			NetSync<int> limited = new NetSync<int>(entity, TransferType.Both, 0, syncOnLoad: false).Coalesce();
 			NetSync<int> unlimited = new NetSync<int>(entity, TransferType.Both, 0, syncOnLoad: false, limitToSyncDistance: false).Coalesce();
@@ -127,7 +137,9 @@ namespace SENetworkAPI.Tests
 			unlimited.Value = 2;
 			Game.NextFrame();
 
-			Assert.Equal(2, Game.Sent.Count);
+			Assert.Equal(server ? 2 : 1, Game.Sent.Count);
+			Assert.Equal(new[] { 1, 2 }, Game.Sent.SelectMany(DecodeSyncDataList)
+				.Select(u => StubSerializer.Deserialize<int>(u.Data)).OrderBy(v => v));
 		}
 
 		[Fact]
@@ -369,9 +381,11 @@ namespace SENetworkAPI.Tests
 			GivenClient();
 			NetSync<int> property = Coalesced();
 			property.Value = 42;
+			new SessionTools().SimulateUnload();
 			Exception thrown = Record.Exception(() => Game.NextFrame());
 
 			Assert.Null(thrown);
+			Assert.Empty(Game.Sent);
 		}
 
 		[Fact]
@@ -393,7 +407,8 @@ namespace SENetworkAPI.Tests
 		public void AGroupThatCannotBeSentDoesNotStopTheOthers()
 		{
 			// Flush runs from the game's update queue, so nothing may escape it.
-			GivenClient();
+			GivenServer();
+			Game.Players.Add(ClientId);
 			MyEntity broken = Game.CreateEntity();
 			MyEntity fine = Game.CreateEntity();
 			NetSync<int> a = Coalesced(broken);
@@ -408,6 +423,7 @@ namespace SENetworkAPI.Tests
 
 			Assert.Null(thrown);
 			Assert.Single(Game.Sent);
+			Assert.Equal(2, StubSerializer.Deserialize<int>(TheOnlySyncDataSent().Data));
 			Assert.True(LoggedError("Problem sending batched"));
 		}
 

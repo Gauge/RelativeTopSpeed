@@ -14,6 +14,48 @@ namespace RelativeTopSpeed.Tests
 {
     public class SimulationTests : TestSession
     {
+        // These tests exercise per-grid enforcement and mechanical activation.
+        // Group tests below explicitly enable physical-group enforcement.
+        private new Settings Unfiltered(bool boost = true)
+        { var settings = base.Unfiltered(boost); settings.EnableGridGroups = false; return settings; }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void PhysicalGroupModeUsesCombinedMomentum(bool grouped)
+        {
+            var settings = Unfiltered(); settings.EnableGridGroups = grouped;
+            Start(settings);
+            var moving = Grid(200); var stopped = Grid(0);
+            var members = new System.Collections.Generic.List<IMyCubeGrid> { moving, stopped };
+            MyAPIGateway.GridGroups.Groups[moving] = members;
+            MyAPIGateway.GridGroups.Groups[stopped] = members;
+            Frames(1);
+            // Equal masses give a group velocity of 100 m/s, below cruise.
+            // Independent-grid mode instead slows the 200 m/s member.
+            if (grouped) Assert.Empty(moving.Physics.Forces);
+            else Assert.Single(moving.Physics.Forces);
+            Assert.Empty(stopped.Physics.Forces);
+        }
+
+        [Fact]
+        public void PhysicalGroupHardCapAppliesOnceToEachMovingBody()
+        {
+            var settings = Unfiltered(false); settings.EnableGridGroups = true;
+            Start(settings);
+            var first = Grid(200, 100000); var second = Grid(200, 100000);
+            var members = new System.Collections.Generic.List<IMyCubeGrid> { first, second };
+            MyAPIGateway.GridGroups.Groups[first] = members;
+            MyAPIGateway.GridGroups.Groups[second] = members;
+            Frames(1);
+            // Combined mass is 200,000 kg: the configured large-grid cruise is 110 m/s.
+            foreach (var grid in new[] { first, second })
+            {
+                Assert.Single(grid.Physics.Forces);
+                Assert.Equal(110f, grid.Physics.Speed, 3);
+            }
+        }
+
         [Theory]
         [InlineData(true)]
         [InlineData(false)]
@@ -109,13 +151,13 @@ namespace RelativeTopSpeed.Tests
             Start(Unfiltered()); Assert.Equal(first, Mod.cfg.Id); Assert.Equal(1, Mod.cfg.Id);
         }
         [Fact]
-        public void HudHandlesMissingPlayerAndThrottlesUpdates()
+        public void HudHandlesMissingPlayerAndRefreshesEveryFrame()
         {
             Start(Unfiltered()); Game.Utilities.SimulateChat("/rts hud");
             var player = (FakePlayer)Game.Session.LocalHumanPlayer;
             Game.Session.LocalHumanPlayer = null; Frames(1);
             Game.Session.LocalHumanPlayer = player; player.Controller.ControlledEntity = new Cockpit { CubeGrid = Grid() };
-            Frames(30); Assert.Equal(3, Game.Utilities.Notifications.Count);
+            Frames(30); Assert.Equal(30, Game.Utilities.Notifications.Count);
             Game.Utilities.SimulateChat("/rts config"); Assert.Contains("Settings", Game.Utilities.Mission);
             Game.Utilities.SimulateChat("/rts"); Assert.Contains(Game.ShownMessages, m => m.Text.Contains("Relative Top Speed"));
         }

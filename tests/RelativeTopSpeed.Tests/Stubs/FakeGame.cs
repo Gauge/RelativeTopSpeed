@@ -192,10 +192,9 @@ namespace SEStubs
             }
         }
 
-        // SENetworkAPI does not use the secure pair; they exist so the stub
-        // mirrors the real interface.
-        public void RegisterSecureMessageHandler(ushort id, Action<ushort, byte[], ulong, bool> messageHandler) { Secure[id] = messageHandler; }
-        public void UnregisterSecureMessageHandler(ushort id, Action<ushort, byte[], ulong, bool> messageHandler) { if (Secure.TryGetValue(id, out var handler) && handler == messageHandler) Secure.Remove(id); }
+        // Match the game's multicast registration and removal of secure handlers.
+        public void RegisterSecureMessageHandler(ushort id, Action<ushort, byte[], ulong, bool> messageHandler) { Secure.TryGetValue(id, out var handlers); Secure[id] = handlers + messageHandler; }
+        public void UnregisterSecureMessageHandler(ushort id, Action<ushort, byte[], ulong, bool> messageHandler) { if (Secure.TryGetValue(id, out var handlers)) { handlers -= messageHandler; if (handlers == null) Secure.Remove(id); else Secure[id] = handlers; } }
 
         public int HandlerCount(ushort id) => _handlers.ContainsKey(id) ? _handlers[id].Count : 0;
 
@@ -257,7 +256,7 @@ namespace SEStubs
 
             if (addressedToSelf && DeliverToSelf)
             {
-                Deliver(packet.ComId, packet.Data);
+                DeliverSecure(packet.ComId, packet.Data, LocalSteamId, IsServer);
             }
 
             return true;

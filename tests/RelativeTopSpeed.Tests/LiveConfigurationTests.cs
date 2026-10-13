@@ -83,7 +83,8 @@ namespace RelativeTopSpeed.Tests
         [Fact]
         public void ConfigWithoutAdditiveOptionsRetainsOldBehavior()
         {
-            var old = Settings.CreateDefault().ToString().Replace("<EnableGridGroups>false</EnableGridGroups>", "");
+            var old = Settings.CreateDefault().ToString().Replace("<EnableGridGroups>true</EnableGridGroups>", "");
+            Assert.DoesNotContain("<EnableGridGroups>", old);
             var parsed = Game.Utilities.SerializeFromXML<Settings>(old);
             Settings.Validate(ref parsed);
             Assert.False(parsed.EnableGridGroups);
